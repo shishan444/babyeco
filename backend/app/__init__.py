@@ -1,1 +1,3 @@
-"""BabyEco Backend Application."""
+"""Application package initialization."""
+
+__version__ = "0.1.0"

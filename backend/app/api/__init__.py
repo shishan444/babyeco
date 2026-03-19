@@ -1,1 +1,1 @@
-"""API package for HTTP endpoints."""
+"""API package initialization."""

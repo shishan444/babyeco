@@ -1,0 +1,51 @@
+# Quality Configuration
+# MoAI-ADK quality gates and development methodology
+
+constitution:
+  # Development methodology selection
+  # Options: ddd (Domain-Driven Development), tdd (Test-Driven Development)
+  development_mode: tdd
+
+  # Enable TRUST 5 quality framework enforcement
+  enforce_quality: true
+
+  # Target code coverage percentage (0-100)
+  test_coverage_target: 85
+
+  # DDD Mode Settings (ANALYZE-PRESERVE-IMPROVE)
+  # Best for: Existing projects with minimal test coverage (< 10%)
+  ddd_settings:
+    require_existing_tests: true
+    characterization_tests: true
+    behavior_snapshots: true
+    max_transformation_size: small
+    preserve_before_improve: true
+
+  # TDD Mode Settings (RED-GREEN-REFACTOR)
+  # Best for: All development work, new projects
+  tdd_settings:
+    red_green_refactor: true
+    test_first_required: true
+    min_coverage_per_commit: 80
+    mutation_testing_enabled: false
+
+  # LSP-based quality gates
+  lsp_quality_gates:
+    plan:
+      capture_baseline: true
+    run:
+      max_errors: 0
+      max_type_errors: 0
+      max_lint_errors: 0
+      allow_regression: false
+    sync:
+      max_errors: 0
+      max_warnings: 10
+      require_clean_lsp: true
+
+# Report generation settings
+report_generation:
+  enabled: true
+  auto_create: false
+  warn_user: true
+  user_choice: Minimal

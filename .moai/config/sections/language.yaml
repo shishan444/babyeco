@@ -1,0 +1,13 @@
+language:
+  # User conversation language (MoAI response language)
+  # Options: en (English), ko (Korean), ja (Japanese), zh (Chinese)
+  conversation_language: zh
+  conversation_language_name: zh
+
+  # Code comments language (godoc, @MX tags, inline comments)
+  # Recommended: en (English) for international compatibility
+  code_comments: en
+
+  # Commit messages language
+  # Options: en (English), ko (Korean), ja (Japanese), zh (Chinese)
+  commit_messages: zh

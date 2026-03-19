@@ -1,142 +1,107 @@
-"""Authentication service for user authentication operations."""
+"""Authentication service for user management."""
 
-from datetime import timedelta
-from typing import Any
+from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.security import (
-    create_access_token as _create_access_token,
-    hash_password,
-    verify_password,
-    verify_token as _verify_token,
-)
+from app.core.security import create_access_token, decode_token, hash_password, verify_password
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import UserRegisterRequest, UserLoginRequest
-
-
-class AuthenticationError(Exception):
-    """Exception raised for authentication errors."""
-
-    pass
-
-
-class UserAlreadyExistsError(Exception):
-    """Exception raised when user already exists."""
-
-    pass
+from app.schemas.auth import UserCreate
 
 
 class AuthService:
-    """Service for authentication operations.
+    """Service handling authentication and user management.
 
-    Handles user registration, login, and token management.
+    @MX:NOTE
+    Implements authentication logic including registration,
+    login, and token management for parent accounts.
     """
 
-    def __init__(self, user_repo: UserRepository, session: AsyncSession | None):
-        """Initialize auth service.
+    def __init__(self, db: AsyncSession) -> None:
+        """Initialize service with database session."""
+        self.db = db
+        self.user_repo = UserRepository(db)
 
-        Args:
-            user_repo: User repository for data access.
-            session: Database session (optional, for future use).
+    async def register(self, user_data: UserCreate) -> User:
+        """Register a new user account.
+
+        @MX:WARN
+        Validates email uniqueness before creating account.
+        Passwords are hashed using bcrypt with configurable rounds.
         """
-        self.user_repo = user_repo
-        self.session = session
-
-    async def register(self, request: UserRegisterRequest) -> Any:
-        """Register a new user.
-
-        Args:
-            request: User registration request data.
-
-        Returns:
-            Created user instance.
-
-        Raises:
-            UserAlreadyExistsError: If phone number already registered.
-        """
-        # Check if user already exists
-        existing = await self.user_repo.get_by_phone(request.phone_number)
-        if existing:
-            raise UserAlreadyExistsError(
-                f"Phone number {request.phone_number} already registered"
+        # Check if email already exists
+        existing_user = await self.user_repo.get_by_email(user_data.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
             )
 
-        # Create user
-        user_data = {
-            "phone_number": request.phone_number,
-            "nickname": request.nickname,
-            "password_hash": hash_password(request.password),
-            "avatar": request.avatar,
-        }
+        # Create new user with hashed password
+        user = User(
+            email=user_data.email,
+            hashed_password=hash_password(user_data.password),
+            name=user_data.name,
+            phone=user_data.phone,
+        )
+        return await self.user_repo.create(user)
 
-        return await self.user_repo.create(user_data)
-
-    async def login(self, request: UserLoginRequest) -> dict[str, Any]:
-        """Authenticate user and return token.
-
-        Args:
-            request: User login request data.
-
-        Returns:
-            Dictionary with access_token, token_type, and user info.
-
-        Raises:
-            AuthenticationError: If credentials are invalid.
-        """
-        # Find user by phone number
-        user = await self.user_repo.get_by_phone(request.phone_number)
+    async def authenticate(self, email: str, password: str) -> User:
+        """Authenticate user with email and password."""
+        user = await self.user_repo.get_by_email(email)
         if not user:
-            raise AuthenticationError("Invalid phone number or password")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
 
-        # Verify password
-        if not verify_password(request.password, user.password_hash):
-            raise AuthenticationError("Invalid phone number or password")
+        if not verify_password(password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
 
-        # Check if user is active
         if not user.is_active:
-            raise AuthenticationError("User account is deactivated")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is deactivated",
+            )
 
-        # Create access token
-        access_token = self.create_access_token(subject=user.id)
+        return user
 
+    async def get_current_user(self, user_id: UUID) -> User:
+        """Get current user by ID."""
+        user = await self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
+        return user
+
+    def create_tokens(self, user_id: str) -> dict[str, str]:
+        """Create access and refresh tokens for a user."""
+        access_token = create_access_token(
+            subject=user_id,
+            token_type="access",
+        )
+        refresh_token = create_access_token(
+            subject=user_id,
+            token_type="refresh",
+        )
         return {
             "access_token": access_token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "phone_number": user.phone_number,
-                "nickname": user.nickname,
-                "avatar": user.avatar,
-            },
+            "refresh_token": refresh_token,
         }
 
-    def create_access_token(
-        self,
-        subject: str | int,
-        expires_delta: timedelta | None = None,
-    ) -> str:
-        """Create a JWT access token.
-
-        Args:
-            subject: Token subject (usually user ID).
-            expires_delta: Optional custom expiry time.
-
-        Returns:
-            JWT token string.
-        """
-        if expires_delta is None:
-            expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-        return _create_access_token(subject=subject, expires_delta=expires_delta)
-
-    def verify_token(self, token: str) -> dict[str, Any] | None:
-        """Verify and decode a JWT token.
-
-        Args:
-            token: JWT token string.
-
-        Returns:
-            Decoded payload if valid, None otherwise.
-        """
-        return _verify_token(token)
+    def verify_refresh_token(self, refresh_token: str) -> str:
+        """Verify refresh token and return user ID."""
+        payload = decode_token(refresh_token)
+        if not payload or payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
+        return payload.get("sub")

@@ -1,188 +1,117 @@
-"""Child profile service for business logic."""
+"""Child profile service for managing child accounts."""
 
-from typing import Any
+from uuid import UUID
 
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.core.security import generate_invite_code
 from app.models.child_profile import ChildProfile
 from app.repositories.child_profile_repository import ChildProfileRepository
-from app.schemas.child_profile import (
-    ChildProfileCreateRequest,
-    ChildProfileUpdateRequest,
-    DeviceBindRequest,
-)
+from app.schemas.auth import ChildProfileCreate
 
 
 class ChildProfileService:
-    """Service for child profile business logic.
+    """Service handling child profile management.
 
-    Handles profile CRUD, device binding, and limit enforcement.
+    @MX:NOTE
+    Manages child profiles including creation,
+    device binding, and point management.
     """
 
-    def __init__(self, session: AsyncSession):
-        """Initialize service with database session.
-
-        Args:
-            session: AsyncSession for database operations.
-        """
-        self.session = session
-        self.repository = ChildProfileRepository(session)
+    def __init__(self, db: AsyncSession) -> None:
+        """Initialize service with database session."""
+        self.db = db
+        self.profile_repo = ChildProfileRepository(db)
 
     async def create_profile(
-        self,
-        parent_id: str,
-        request: ChildProfileCreateRequest,
+        self, parent_id: UUID, profile_data: ChildProfileCreate
     ) -> ChildProfile:
         """Create a new child profile for a parent.
 
-        Args:
-            parent_id: Parent user's ID.
-            request: Profile creation request data.
-
-        Returns:
-            ChildProfile: Created child profile.
-
-        Raises:
-            ValueError: If profile limit exceeded.
+        @MX:WARN
+        Generates unique invite code for device binding.
+        Maximum 5 child profiles per parent.
         """
         # Check profile limit
-        count = await self.repository.count_by_parent(parent_id)
-        if count >= settings.MAX_CHILDREN_PER_PARENT:
-            raise ValueError(
-                f"Maximum {settings.MAX_CHILDREN_PER_PARENT} child profiles allowed"
+        existing_profiles = await self.profile_repo.get_by_parent_id(parent_id)
+        if len(existing_profiles) >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum number of child profiles reached (5)",
             )
 
-        profile_data: dict[str, Any] = {
-            "child_name": request.child_name,
-            "child_age": request.child_age,
-            "parent_id": parent_id,
-        }
+        # Generate unique invite code
+        invite_code = generate_invite_code()
+        while await self.profile_repo.get_by_invite_code(invite_code):
+            invite_code = generate_invite_code()
 
-        if request.child_avatar:
-            profile_data["child_avatar"] = request.child_avatar
+        # Create profile with birth_date handling
+        birth_date = profile_data.birth_date.date() if profile_data.birth_date else None
 
-        return await self.repository.create(profile_data)
+        profile = ChildProfile(
+            parent_id=parent_id,
+            name=profile_data.name,
+            birth_date=birth_date,
+            invite_code=invite_code,
+        )
+        return await self.profile_repo.create(profile)
 
-    async def get_profiles(self, parent_id: str) -> list[ChildProfile]:
-        """Get all child profiles for a parent.
+    async def get_profiles_by_parent(self, parent_id: UUID) -> list[ChildProfile]:
+        """Get all child profiles for a parent."""
+        return await self.profile_repo.get_by_parent_id(parent_id)
 
-        Args:
-            parent_id: Parent user's ID.
-
-        Returns:
-            list[ChildProfile]: List of child profiles.
-        """
-        return await self.repository.get_by_parent(parent_id)
-
-    async def get_profile(self, profile_id: str, parent_id: str) -> ChildProfile | None:
-        """Get a specific child profile.
-
-        Args:
-            profile_id: Child profile's ID.
-            parent_id: Parent user's ID (for ownership verification).
-
-        Returns:
-            ChildProfile | None: Profile if found and owned by parent.
-        """
-        profile = await self.repository.get_by_id(profile_id)
-        if profile is None or profile.parent_id != parent_id:
-            return None
+    async def get_profile(self, profile_id: UUID, parent_id: UUID) -> ChildProfile:
+        """Get a child profile by ID, verifying parent ownership."""
+        profile = await self.profile_repo.get_by_id(profile_id)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Child profile not found",
+            )
+        if profile.parent_id != parent_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
         return profile
 
-    async def update_profile(
-        self,
-        profile_id: str,
-        parent_id: str,
-        request: ChildProfileUpdateRequest,
-    ) -> ChildProfile | None:
-        """Update a child profile.
+    async def bind_device(self, invite_code: str) -> ChildProfile:
+        """Bind a device to a child profile using invite code."""
+        profile = await self.profile_repo.get_by_invite_code(invite_code)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid invite code",
+            )
+        if profile.device_bound:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This code has already been used",
+            )
 
-        Args:
-            profile_id: Child profile's ID.
-            parent_id: Parent user's ID (for ownership verification).
-            request: Profile update request data.
+        profile.device_bound = True
+        return await self.profile_repo.update(profile)
 
-        Returns:
-            ChildProfile | None: Updated profile if found and owned.
-        """
-        # Verify ownership
+    async def add_points(self, profile_id: UUID, points: int) -> ChildProfile:
+        """Add or subtract points from a child profile."""
+        profile = await self.profile_repo.get_by_id(profile_id)
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Child profile not found",
+            )
+
+        # Prevent negative balance
+        if profile.points_balance + points < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Insufficient points",
+            )
+
+        return await self.profile_repo.add_points(profile_id, points)
+
+    async def delete_profile(self, profile_id: UUID, parent_id: UUID) -> None:
+        """Delete a child profile, verifying parent ownership."""
         profile = await self.get_profile(profile_id, parent_id)
-        if profile is None:
-            return None
-
-        update_data: dict[str, Any] = {}
-        if request.child_name is not None:
-            update_data["child_name"] = request.child_name
-        if request.child_age is not None:
-            update_data["child_age"] = request.child_age
-        if request.child_avatar is not None:
-            update_data["child_avatar"] = request.child_avatar
-
-        return await self.repository.update(profile_id, update_data)
-
-    async def delete_profile(self, profile_id: str, parent_id: str) -> bool:
-        """Delete a child profile.
-
-        Args:
-            profile_id: Child profile's ID.
-            parent_id: Parent user's ID (for ownership verification).
-
-        Returns:
-            bool: True if deleted, False if not found or not owned.
-        """
-        # Verify ownership
-        profile = await self.get_profile(profile_id, parent_id)
-        if profile is None:
-            return False
-
-        return await self.repository.delete(profile_id)
-
-    async def bind_device(self, request: DeviceBindRequest) -> ChildProfile | None:
-        """Bind a device to a child profile using invite code.
-
-        Args:
-            request: Device binding request data.
-
-        Returns:
-            ChildProfile | None: Updated profile if invite code is valid.
-        """
-        profile = await self.repository.get_by_invite_code(request.invite_code)
-        if profile is None:
-            return None
-
-        # Check if invite code is still valid
-        if not profile.is_invite_code_valid():
-            return None
-
-        # Bind device
-        profile.bind_device(request.device_id, request.device_token)
-        await self.session.commit()
-        await self.session.refresh(profile)
-
-        return profile
-
-    async def regenerate_invite_code(
-        self,
-        profile_id: str,
-        parent_id: str,
-    ) -> ChildProfile | None:
-        """Regenerate invite code for a child profile.
-
-        Args:
-            profile_id: Child profile's ID.
-            parent_id: Parent user's ID (for ownership verification).
-
-        Returns:
-            ChildProfile | None: Updated profile with new invite code.
-        """
-        # Verify ownership
-        profile = await self.get_profile(profile_id, parent_id)
-        if profile is None:
-            return None
-
-        profile.regenerate_invite_code()
-        await self.session.commit()
-        await self.session.refresh(profile)
-
-        return profile
+        await self.profile_repo.delete(profile)

@@ -1,150 +1,122 @@
-"""Children API endpoints for child profile management."""
+"""Child profile management API routes."""
+
+from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps.auth import get_current_user
+from app.api.deps.auth import CurrentUser
 from app.core.database import get_db
-from app.models.user import User
-from app.schemas.child_profile import (
-    ChildProfileCreateRequest,
+from app.schemas.auth import (
+    ChildProfileCreate,
     ChildProfileResponse,
-    ChildProfileUpdateRequest,
-    DeviceBindRequest,
+    DeviceBindingRequest,
 )
 from app.services.child_profile_service import ChildProfileService
 
-router = APIRouter(prefix="/children", tags=["children"])
+router = APIRouter()
 
 
-@router.post(
-    "/",
-    response_model=ChildProfileResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/", response_model=ChildProfileResponse, status_code=status.HTTP_201_CREATED)
 async def create_child_profile(
-    request: ChildProfileCreateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Create a new child profile for the authenticated parent."""
-    service = ChildProfileService(db)
+    profile_data: ChildProfileCreate,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChildProfileResponse:
+    """Create a new child profile for the current parent.
 
-    try:
-        profile = await service.create_profile(current_user.id, request)
-        return ChildProfileResponse.model_validate(profile)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+    Creates a child profile and generates an invite code for device binding.
+    """
+    service = ChildProfileService(db)
+    profile = await service.create_profile(current_user.id, profile_data)
+    return ChildProfileResponse.model_validate(profile)
 
 
 @router.get("/", response_model=list[ChildProfileResponse])
-async def get_children(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get all child profiles for the authenticated parent."""
+async def list_child_profiles(
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[ChildProfileResponse]:
+    """List all child profiles for the current parent."""
     service = ChildProfileService(db)
-    profiles = await service.get_profiles(current_user.id)
+    profiles = await service.get_profiles_by_parent(current_user.id)
     return [ChildProfileResponse.model_validate(p) for p in profiles]
 
 
-@router.get("/{child_id}", response_model=ChildProfileResponse)
+@router.get("/{profile_id}", response_model=ChildProfileResponse)
 async def get_child_profile(
-    child_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+    profile_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChildProfileResponse:
     """Get a specific child profile by ID."""
     service = ChildProfileService(db)
-    profile = await service.get_profile(child_id, current_user.id)
-
-    if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Child profile not found",
-        )
-
+    profile = await service.get_profile(profile_id, current_user.id)
     return ChildProfileResponse.model_validate(profile)
 
 
-@router.patch("/{child_id}", response_model=ChildProfileResponse)
-async def update_child_profile(
-    child_id: str,
-    request: ChildProfileUpdateRequest,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Update a child profile."""
-    service = ChildProfileService(db)
-    profile = await service.update_profile(child_id, current_user.id, request)
-
-    if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Child profile not found",
-        )
-
-    return ChildProfileResponse.model_validate(profile)
-
-
-@router.delete("/{child_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_child_profile(
-    child_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
+    profile_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
     """Delete a child profile."""
     service = ChildProfileService(db)
-    deleted = await service.delete_profile(child_id, current_user.id)
-
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Child profile not found",
-        )
-
-    return None
+    await service.delete_profile(profile_id, current_user.id)
 
 
-@router.post("/bind-device", response_model=ChildProfileResponse)
+@router.post("/{profile_id}/bind-device", response_model=ChildProfileResponse)
 async def bind_device(
-    request: DeviceBindRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Bind a device to a child profile using invite code.
+    profile_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChildProfileResponse:
+    """Mark a child profile as device-bound.
 
-    This endpoint does not require authentication - it uses the invite code
-    to identify the child profile.
+    Called after a child successfully logs in with the invite code.
     """
     service = ChildProfileService(db)
-    profile = await service.bind_device(request)
-
-    if profile is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired invite code",
-        )
-
+    profile = await service.bind_device(profile_id, current_user.id)
     return ChildProfileResponse.model_validate(profile)
 
 
-@router.post("/{child_id}/regenerate-invite", response_model=ChildProfileResponse)
-async def regenerate_invite_code(
-    child_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Regenerate invite code for a child profile."""
-    service = ChildProfileService(db)
-    profile = await service.regenerate_invite_code(child_id, current_user.id)
+@router.post("/bind-with-code", response_model=ChildProfileResponse)
+async def bind_with_invite_code(
+    request: DeviceBindingRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChildProfileResponse:
+    """Bind a device using an invite code (child login).
 
-    if profile is None:
+    This endpoint is used by child devices to authenticate
+    using the invite code provided by their parent.
+    """
+    service = ChildProfileService(db)
+    profile = await service.get_profile_by_invite_code(request.invite_code)
+    if not profile:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Child profile not found",
+            detail="Invalid invite code",
         )
 
+    # Bind the device
+    bound_profile = await service.bind_device(profile.id, profile.parent_id)
+    return ChildProfileResponse.model_validate(bound_profile)
+
+
+@router.post("/{profile_id}/points", response_model=ChildProfileResponse)
+async def add_points(
+    profile_id: UUID,
+    points: int,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ChildProfileResponse:
+    """Add or subtract points from a child profile.
+
+    Positive values add points, negative values subtract points.
+    Cannot reduce points below zero.
+    """
+    service = ChildProfileService(db)
+    profile = await service.add_points(profile_id, points)
     return ChildProfileResponse.model_validate(profile)

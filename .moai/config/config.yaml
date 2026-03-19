@@ -1,0 +1,15 @@
+# MoAI Main Configuration
+# Generated: 2026-03-19
+
+moai:
+  version: "2.6.0"
+  template_version: "2.6.0"
+
+# Include section configs
+include:
+  - sections/language.yaml
+  - sections/workflow.yaml
+  - sections/quality.yaml
+  - sections/git-strategy.yaml
+  - sections/llm.yaml
+  - sections/mx.yaml

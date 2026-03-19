@@ -4,34 +4,70 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1.auth import router as auth_router
-from app.api.v1.children import router as children_router
-from app.core.database import init_db
+from app.api.v1 import router as api_v1_router
+from app.core.config import settings
+from app.core.database import close_db, init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan context manager."""
-    # Startup: Initialize database
+    """Application lifespan manager for startup and shutdown events."""
+    # Startup
     await init_db()
     yield
-    # Shutdown: Clean up resources
+    # Shutdown
+    await close_db()
 
 
-app = FastAPI(
-    title="BabyEco API",
-    description="BabyEco Account System Backend API",
-    version="0.1.0",
-    lifespan=lifespan,
-)
+def create_application() -> FastAPI:
+    """Create and configure the FastAPI application."""
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="BabyEco - Children's Behavioral Incentive Economy System API",
+        docs_url="/api/docs" if settings.debug else None,
+        redoc_url="/api/redoc" if settings.debug else None,
+        openapi_url="/api/openapi.json" if settings.debug else None,
+        lifespan=lifespan,
+    )
 
-# Include routers
-app.include_router(auth_router, prefix="/api/v1")
-app.include_router(children_router, prefix="/api/v1")
+    # Configure CORS
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include API routes
+    app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+
+    # Health check endpoint
+    @app.get("/health")
+    async def health_check() -> dict:
+        """Health check endpoint for monitoring."""
+        return {
+            "status": "healthy",
+            "version": settings.app_version,
+            "environment": settings.environment,
+        }
+
+    return app
 
 
-@app.get("/health")
-async def health_check() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "healthy"}
+# Application instance
+app = create_application()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.debug,
+    )

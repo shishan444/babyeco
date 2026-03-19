@@ -1,0 +1,32 @@
+# Git Strategy Configuration
+# MoAI-ADK git workflow and GitHub integration
+
+# ===== Repository Binding (Auto-detected via /moai use) =====
+repository:
+  linked: true
+  linked_at: "2026-03-19T16:00:00Z"
+
+  owner: "shishan444"
+  name: "babyeco"
+  remote_name: "origin"
+  remote_url: "https://github.com/shishan444/babyeco.git"
+
+  default_branch: "main"
+  visibility: "public"
+
+  remotes:
+    - name: "origin"
+      url: "https://github.com/shishan444/babyeco.git"
+      type: "https"
+
+# Branch naming conventions
+branches:
+  feature_prefix: "feature/"
+  fix_prefix: "fix/"
+  release_prefix: "release/"
+
+# Commit message conventions
+commits:
+  convention: "conventional"
+  max_subject_length: 72
+  require_issue_reference: false

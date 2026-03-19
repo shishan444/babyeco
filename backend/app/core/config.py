@@ -1,7 +1,9 @@
-"""Application configuration using Pydantic Settings."""
+"""Application configuration module."""
 
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,24 +13,42 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True,
+        case_sensitive=False,
         extra="ignore",
     )
 
-    # Database Configuration
-    DATABASE_URL: str = "sqlite+aiosqlite:///./babyeco.db"
+    # Application
+    app_name: str = "BabyEco API"
+    app_version: str = "0.1.0"
+    debug: bool = False
+    environment: Literal["development", "staging", "production"] = "development"
 
-    # JWT Configuration
-    SECRET_KEY: str = "babyeco-secret-key-change-in-production-min-32-chars!"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours by default
+    # API
+    api_v1_prefix: str = "/api/v1"
+    cors_origins: list[str] = Field(default=["http://localhost:3000", "http://localhost:19006"])
 
-    # Invite Code Configuration
-    INVITE_CODE_LENGTH: int = 8
-    INVITE_CODE_EXPIRE_DAYS: int = 7
+    # Database
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/babyeco"
+    )
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
 
-    # Child Profile Limits
-    MAX_CHILDREN_PER_PARENT: int = 5
+    # Redis
+    redis_url: str = Field(default="redis://localhost:6379/0")
+
+    # JWT Authentication
+    jwt_secret_key: str = Field(default="change-me-in-production-use-secure-random-key")
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24  # 24 hours
+    jwt_refresh_token_expire_days: int = 30
+
+    # Password Hashing
+    bcrypt_rounds: int = 12
+
+    # Security
+    invite_code_length: int = 6
+    invite_code_expiry_hours: int = 72
 
 
 @lru_cache
@@ -37,5 +57,4 @@ def get_settings() -> Settings:
     return Settings()
 
 
-# Global settings instance
 settings = get_settings()
