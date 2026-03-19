@@ -1,12 +1,18 @@
 """Test configuration and fixtures."""
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator, Generator
 from typing import Type
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+
+# Set test environment variables BEFORE importing app modules
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
@@ -67,7 +73,7 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest.fixture
 def app(db_session: AsyncSession) -> FastAPI:
-    """Create test application with mocked database."""
+    """Create test application with overridden dependencies."""
     app = create_application()
 
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
