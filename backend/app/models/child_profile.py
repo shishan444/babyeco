@@ -43,6 +43,11 @@ class ChildProfile(Base, TimestampMixin):
 
     # Relationships
     parent: Mapped["User"] = relationship("User", back_populates="children")
+    content_progress: Mapped[list["ContentProgress"]] = relationship(back_populates="child")
+    content_unlocks: Mapped[list["ContentUnlock"]] = relationship(back_populates="child")
+    redemptions: Mapped[list["Redemption"]] = relationship(back_populates="child")
+    timer_sessions: Mapped[list["TimerSession"]] = relationship(back_populates="child")
+    pinned_rewards: Mapped[list["PinnedReward"]] = relationship(back_populates="child")
 
     @property
     def age(self) -> int | None:

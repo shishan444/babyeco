@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -22,8 +23,6 @@ class ContentType(str, Enum):
 
     FREE = "free"
     PREMIUM = "premium"
-
-
     UNLOCKABLE = "unlockable"
 
 
@@ -39,83 +38,82 @@ class ContentBase(BaseModel):
     """Base content schema."""
 
     title: str = Field(..., min_length=1, max_length=200)
-    description: str | None = Field(None, max_length=500)
-    content_url: str | None = None
+    description: Optional[str] = Field(None, max_length=500)
+    content_url: Optional[str] = None
     category: ContentCategory = Field(default=ContentCategory.STORY)
     type: ContentType = Field(default=ContentType.FREE)
-    duration_seconds: int | None = None
-    age_min: int | None = None
-    age_max: int | None = None
-    thumbnail_url: str | None = None
+    duration_seconds: Optional[int] = None
+    age_min: Optional[int] = None
+    age_max: Optional[int] = None
+    thumbnail_url: Optional[str] = None
     status: ContentStatus = Field(default=ContentStatus.PUBLISHED)
     points_cost: int = Field(default=0, ge=0, le=1000)
     points_reward: int = Field(default=10, ge=1, le=100)
     is_premium: bool = Field(default=False)
-    author: str | None = None
-
-
+    author: Optional[str] = None
     enabled: bool = Field(default=True)
 
 
-class ContentCreateRequest(ContentBase):
+class ContentCreateRequest(BaseModel):
     """Schema for creating content."""
 
     family_id: UUID
-    title: str
-    description: str | None = None
-    content_url: str | None = None
-    category: ContentCategory
- type: ContentType = duration_seconds: int | None = None
-    age_min: int | None = None
-    age_max: int | None = None
-    thumbnail_url: str | None = None
-    status: ContentStatus = points_cost: int = Field(default=0, ge=0, le=1000)
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    content_url: Optional[str] = None
+    category: ContentCategory = Field(default=ContentCategory.STORY)
+    type: ContentType = Field(default=ContentType.FREE)
+    duration_seconds: Optional[int] = None
+    age_min: Optional[int] = None
+    age_max: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+    status: ContentStatus = Field(default=ContentStatus.PUBLISHED)
+    points_cost: int = Field(default=0, ge=0, le=1000)
     points_reward: int = Field(default=10, ge=1, le=100)
     is_premium: bool = Field(default=False)
-    author: str | None = None
+    author: Optional[str] = None
     enabled: bool = Field(default=True)
 
 
 class ContentUpdateRequest(BaseModel):
     """Schema for updating content."""
 
-    title: str | None = Field(None, min_length=1, max_length=200)
-    description: str | None = Field(None, max_length=500)
-    content_url: str | None = None
-    category: ContentCategory | None
- None
-    type: ContentType | None = None
-    duration_seconds: int | None = None
-    age_min: int | None = None
-    age_max: int | None = None
-    thumbnail_url: str | None = None
-    status: ContentStatus | None = None
-    points_cost: int | None = Field(None, ge=0, le=100)
-    points_reward: int | None = Field(None, ge=1, le=100)
-    is_premium: bool | None = None
-    author: str | None = None
-    enabled: bool | None = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=500)
+    content_url: Optional[str] = None
+    category: Optional[ContentCategory] = None
+    type: Optional[ContentType] = None
+    duration_seconds: Optional[int] = None
+    age_min: Optional[int] = None
+    age_max: Optional[int] = None
+    thumbnail_url: Optional[str] = None
+    status: Optional[ContentStatus] = None
+    points_cost: Optional[int] = Field(None, ge=0, le=100)
+    points_reward: Optional[int] = Field(None, ge=1, le=100)
+    is_premium: Optional[bool] = None
+    author: Optional[str] = None
+    enabled: Optional[bool] = None
 
 
-class ContentResponse(ContentBase):
+class ContentResponse(BaseModel):
     """Schema for content response."""
 
     id: UUID
     family_id: UUID
     title: str
-    description: str | None
-    content_url: str | None
+    description: Optional[str]
+    content_url: Optional[str]
     category: ContentCategory
     type: ContentType
-    duration_seconds: int | None
-    age_min: int | None
-    age_max: int | None
-    thumbnail_url: str | None
+    duration_seconds: Optional[int]
+    age_min: Optional[int]
+    age_max: Optional[int]
+    thumbnail_url: Optional[str]
     status: ContentStatus
     points_cost: int
     points_reward: int
     is_premium: bool
-    author: str | None
+    author: Optional[str]
     created_by: UUID
     created_at: datetime
     enabled: bool
@@ -141,9 +139,9 @@ class ContentProgressResponse(BaseModel):
     progress_seconds: int
     completed: bool
     points_earned: int
-    last_position: int | None
+    last_position: Optional[int]
     started_at: datetime
-    completed_at: datetime | None
+    completed_at: Optional[datetime]
     last_updated_at: datetime
 
     model_config = {"from_attributes": True}
@@ -156,7 +154,7 @@ class ContentUnlockResponse(BaseModel):
     content_id: UUID
     points_spent: int
     unlocked_at: datetime
-    expires_at: datetime | None
+    expires_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
 
@@ -165,9 +163,7 @@ class UpdateProgressRequest(BaseModel):
     """Schema for updating progress."""
 
     progress_seconds: int
-    last_position: int | None
-
-
+    last_position: Optional[int] = None
     completed: bool = False
 
 
@@ -175,10 +171,8 @@ class CompleteContentRequest(BaseModel):
     """Schema for marking content complete."""
 
     points_bonus: int = Field(default=0, ge=0, le=50)
-
-
-    answers_correct: int | Field(default=0, ge=0, le=10)
-    notes: str | None = None
+    answers_correct: int = Field(default=0, ge=0, le=10)
+    notes: Optional[str] = None
 
 
 class QuestionSessionRequest(BaseModel):
@@ -186,7 +180,6 @@ class QuestionSessionRequest(BaseModel):
 
     content_id: UUID
     child_age: int
-    model_config = {"from_attributes": True}
 
 
 class QuestionSessionResponse(BaseModel):

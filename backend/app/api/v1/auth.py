@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import CurrentUser, get_current_user
 from app.core.database import get_db
+from app.models.user import User
 from app.schemas.auth import (
     RefreshTokenRequest,
     TokenResponse,
@@ -45,7 +46,7 @@ async def login(
     """
     auth_service = AuthService(db)
     user = await auth_service.authenticate(credentials.email, credentials.password)
-    return await auth_service.create_tokens(user)
+    return auth_service.create_tokens(str(user.id))
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -67,7 +68,7 @@ async def refresh_token(
             detail="User not found",
         )
 
-    return await auth_service.create_tokens(user_repo)
+    return auth_service.create_tokens(str(user_repo.id))
 
 
 @router.get("/me", response_model=UserResponse)

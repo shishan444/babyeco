@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.point import PointBalance, PointTransaction, PointFreeze
@@ -77,30 +77,29 @@ class PointService:
         description: str | None = None,
     ) -> PointTransaction:
         """Add points to child's balance."""
-        async with self.db.begin():
-            # Lock and get balance
-            balance = await self._get_or_create_balance(child_id)
+        # Use existing transaction context from FastAPI
+        balance = await self._get_or_create_balance(child_id)
 
-            # Update balance
-            balance.balance += amount
-            balance.total_earned += amount
-            balance.updated_at = datetime.now(timezone.utc)
+        # Update balance
+        balance.balance += amount
+        balance.total_earned += amount
+        balance.updated_at = datetime.now(timezone.utc)
 
-            # Create transaction record
-            transaction = PointTransaction(
-                child_id=child_id,
-                type="earn",
-                amount=amount,
-                balance_after=balance.balance,
-                source_type=source_type,
-                source_id=source_id,
-                description=description,
-            )
-            self.db.add(transaction)
-            await self.db.flush()
-            await self.db.refresh(transaction)
+        # Create transaction record
+        transaction = PointTransaction(
+            child_id=child_id,
+            type="earn",
+            amount=amount,
+            balance_after=balance.balance,
+            source_type=source_type,
+            source_id=source_id,
+            description=description,
+        )
+        self.db.add(transaction)
+        await self.db.flush()
+        await self.db.refresh(transaction)
 
-            return transaction
+        return transaction
 
     async def spend(
         self,
@@ -111,35 +110,34 @@ class PointService:
         description: str | None = None,
     ) -> PointTransaction:
         """Spend points from child's balance."""
-        async with self.db.begin():
-            # Lock and get balance
-            balance = await self._get_or_create_balance(child_id)
+        # Use existing transaction context from FastAPI
+        balance = await self._get_or_create_balance(child_id)
 
-            # Check available balance
-            available = balance.balance - balance.frozen
-            if available < amount:
-                raise InsufficientPointsError(available, amount)
+        # Check available balance
+        available = balance.balance - balance.frozen
+        if available < amount:
+            raise InsufficientPointsError(available, amount)
 
-            # Update balance
-            balance.balance -= amount
-            balance.total_spent += amount
-            balance.updated_at = datetime.now(timezone.utc)
+        # Update balance
+        balance.balance -= amount
+        balance.total_spent += amount
+        balance.updated_at = datetime.now(timezone.utc)
 
-            # Create transaction record
-            transaction = PointTransaction(
-                child_id=child_id,
-                type="spend",
-                amount=-amount,
-                balance_after=balance.balance,
-                source_type=source_type,
-                source_id=source_id,
-                description=description,
-            )
-            self.db.add(transaction)
-            await self.db.flush()
-            await self.db.refresh(transaction)
+        # Create transaction record
+        transaction = PointTransaction(
+            child_id=child_id,
+            type="spend",
+            amount=-amount,
+            balance_after=balance.balance,
+            source_type=source_type,
+            source_id=source_id,
+            description=description,
+        )
+        self.db.add(transaction)
+        await self.db.flush()
+        await self.db.refresh(transaction)
 
-            return transaction
+        return transaction
 
     async def freeze(
         self,
@@ -149,43 +147,42 @@ class PointService:
         source_id: UUID | None = None,
     ) -> PointFreeze:
         """Freeze points for a pending reward."""
-        async with self.db.begin():
-            # Lock and get balance
-            balance = await self._get_or_create_balance(child_id)
+        # Use existing transaction context from FastAPI
+        balance = await self._get_or_create_balance(child_id)
 
-            # Check available balance
-            available = balance.balance - balance.frozen
-            if available < amount:
-                raise InsufficientPointsError(available, amount)
+        # Check available balance
+        available = balance.balance - balance.frozen
+        if available < amount:
+            raise InsufficientPointsError(available, amount)
 
-            # Update frozen amount
-            balance.frozen += amount
-            balance.updated_at = datetime.now(timezone.utc)
+        # Update frozen amount
+        balance.frozen += amount
+        balance.updated_at = datetime.now(timezone.utc)
 
-            # Create freeze record
-            freeze = PointFreeze(
-                child_id=child_id,
-                amount=amount,
-                source_type=source_type,
-                source_id=source_id,
-            )
-            self.db.add(freeze)
-            await self.db.flush()
-            await self.db.refresh(freeze)
+        # Create freeze record
+        freeze = PointFreeze(
+            child_id=child_id,
+            amount=amount,
+            source_type=source_type,
+            source_id=source_id,
+        )
+        self.db.add(freeze)
+        await self.db.flush()
+        await self.db.refresh(freeze)
 
-            # Create freeze transaction
-            transaction = PointTransaction(
-                child_id=child_id,
-                type="freeze",
-                amount=-amount,
-                balance_after=balance.balance,
-                source_type=source_type,
-                source_id=source_id,
-            )
-            self.db.add(transaction)
-            await self.db.flush()
+        # Create freeze transaction
+        transaction = PointTransaction(
+            child_id=child_id,
+            type="freeze",
+            amount=-amount,
+            balance_after=balance.balance,
+            source_type=source_type,
+            source_id=source_id,
+        )
+        self.db.add(transaction)
+        await self.db.flush()
 
-            return freeze
+        return freeze
 
     async def unfreeze(
         self,
@@ -193,45 +190,45 @@ class PointService:
         freeze_id: UUID,
     ) -> PointTransaction:
         """Unfreeze previously frozen points."""
-        async with self.db.begin():
-            # Get freeze record
-            result = await self.db.execute(
-                select(PointFreeze).where(
-                    PointFreeze.id == freeze_id,
-                    PointFreeze.child_id == child_id,
-                    PointFreeze.status == "active",
-                )
+        # Use existing transaction context from FastAPI
+        # Get freeze record
+        result = await self.db.execute(
+            select(PointFreeze).where(
+                PointFreeze.id == freeze_id,
+                PointFreeze.child_id == child_id,
+                PointFreeze.status == "active",
             )
-            freeze = result.scalar_one_or_none()
+        )
+        freeze = result.scalar_one_or_none()
 
-            if not freeze:
-                raise ValueError("Freeze record not found or not active")
+        if not freeze:
+            raise ValueError("Freeze record not found or not active")
 
-            # Lock and get balance
-            balance = await self._get_or_create_balance(child_id)
+        # Get balance
+        balance = await self._get_or_create_balance(child_id)
 
-            # Update frozen amount
-            balance.frozen -= freeze.amount
-            balance.updated_at = datetime.now(timezone.utc)
+        # Update frozen amount
+        balance.frozen -= freeze.amount
+        balance.updated_at = datetime.now(timezone.utc)
 
-            # Mark freeze as released
-            freeze.status = "released"
-            freeze.released_at = datetime.now(timezone.utc)
+        # Mark freeze as released
+        freeze.status = "released"
+        freeze.released_at = datetime.now(timezone.utc)
 
-            # Create unfreeze transaction
-            transaction = PointTransaction(
-                child_id=child_id,
-                type="unfreeze",
-                amount=freeze.amount,
-                balance_after=balance.balance,
-                source_type="freeze_release",
-                source_id=freeze_id,
-            )
-            self.db.add(transaction)
-            await self.db.flush()
-            await self.db.refresh(transaction)
+        # Create unfreeze transaction
+        transaction = PointTransaction(
+            child_id=child_id,
+            type="unfreeze",
+            amount=freeze.amount,
+            balance_after=balance.balance,
+            source_type="freeze_release",
+            source_id=freeze_id,
+        )
+        self.db.add(transaction)
+        await self.db.flush()
+        await self.db.refresh(transaction)
 
-            return transaction
+        return transaction
 
     async def adjust(
         self,
@@ -240,32 +237,31 @@ class PointService:
         reason: str,
     ) -> PointTransaction:
         """Manually adjust child's balance (parent action)."""
-        async with self.db.begin():
-            # Lock and get balance
-            balance = await self._get_or_create_balance(child_id)
+        # Use existing transaction - no nested begin needed
+        balance = await self._get_or_create_balance(child_id)
 
-            # Update balance
-            balance.balance += amount
-            if amount > 0:
-                balance.total_earned += amount
-            else:
-                balance.total_spent += abs(amount)
-            balance.updated_at = datetime.now(timezone.utc)
+        # Update balance
+        balance.balance += amount
+        if amount > 0:
+            balance.total_earned += amount
+        else:
+            balance.total_spent += abs(amount)
+        balance.updated_at = datetime.now(timezone.utc)
 
-            # Create adjustment transaction
-            transaction = PointTransaction(
-                child_id=child_id,
-                type="adjust",
-                amount=amount,
-                balance_after=balance.balance,
-                source_type="manual_adjustment",
-                description=reason,
-            )
-            self.db.add(transaction)
-            await self.db.flush()
-            await self.db.refresh(transaction)
+        # Create adjustment transaction
+        transaction = PointTransaction(
+            child_id=child_id,
+            type="adjust",
+            amount=amount,
+            balance_after=balance.balance,
+            source_type="manual_adjustment",
+            description=reason,
+        )
+        self.db.add(transaction)
+        await self.db.flush()
+        await self.db.refresh(transaction)
 
-            return transaction
+        return transaction
 
     async def get_transaction_history(
         self,
@@ -291,7 +287,7 @@ class PointService:
             query = query.where(PointTransaction.created_at <= end_date)
 
         # Get total count
-        count_query = select(func()).select_from(query.subquery())
+        count_query = select(func.count()).select_from(query.subquery())
         count_result = await self.db.execute(count_query)
         total = count_result.scalar_one()
 

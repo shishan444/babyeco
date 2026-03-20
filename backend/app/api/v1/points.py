@@ -25,7 +25,7 @@ from app.services.point_service import (
     PointService,
 )
 
- from app.models.point import PointTransaction
+from app.models.point import PointTransaction
 
 
 router = APIRouter()

@@ -104,7 +104,6 @@ class AdjustRequest(BaseModel):
 class EarnRequest(BaseModel):
     """Schema for earning points (internal use)."""
 
-    child_id: UUID
     amount: int = Field(..., gt=1)
     source_type: str
     source_id: UUID | None = None
@@ -114,7 +113,6 @@ class EarnRequest(BaseModel):
 class SpendRequest(BaseModel):
     """Schema for spending points (internal use)."""
 
-    child_id: UUID
     amount: int = Field(..., gt=1)
     source_type: str
     source_id: UUID | None = None
