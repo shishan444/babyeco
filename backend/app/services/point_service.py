@@ -1,16 +1,16 @@
 """Point system service for managing balances and transactions."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.point import PointBalance, PointTransaction, PointFreeze
+from app.models.point import PointBalance, PointFreeze, PointTransaction
 
 if TYPE_CHECKING:
-    from app.models.child_profile import ChildProfile
+    pass
 
 
 class InsufficientPointsError(Exception):
@@ -83,7 +83,7 @@ class PointService:
         # Update balance
         balance.balance += amount
         balance.total_earned += amount
-        balance.updated_at = datetime.now(timezone.utc)
+        balance.updated_at = datetime.now(UTC)
 
         # Create transaction record
         transaction = PointTransaction(
@@ -121,7 +121,7 @@ class PointService:
         # Update balance
         balance.balance -= amount
         balance.total_spent += amount
-        balance.updated_at = datetime.now(timezone.utc)
+        balance.updated_at = datetime.now(UTC)
 
         # Create transaction record
         transaction = PointTransaction(
@@ -157,7 +157,7 @@ class PointService:
 
         # Update frozen amount
         balance.frozen += amount
-        balance.updated_at = datetime.now(timezone.utc)
+        balance.updated_at = datetime.now(UTC)
 
         # Create freeze record
         freeze = PointFreeze(
@@ -209,11 +209,11 @@ class PointService:
 
         # Update frozen amount
         balance.frozen -= freeze.amount
-        balance.updated_at = datetime.now(timezone.utc)
+        balance.updated_at = datetime.now(UTC)
 
         # Mark freeze as released
         freeze.status = "released"
-        freeze.released_at = datetime.now(timezone.utc)
+        freeze.released_at = datetime.now(UTC)
 
         # Create unfreeze transaction
         transaction = PointTransaction(
@@ -246,7 +246,7 @@ class PointService:
             balance.total_earned += amount
         else:
             balance.total_spent += abs(amount)
-        balance.updated_at = datetime.now(timezone.utc)
+        balance.updated_at = datetime.now(UTC)
 
         # Create adjustment transaction
         transaction = PointTransaction(

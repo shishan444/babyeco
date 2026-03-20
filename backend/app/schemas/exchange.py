@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
@@ -37,12 +36,12 @@ class RewardCreate(BaseModel):
     """Schema for creating a reward."""
 
     name: str = Field(..., min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-    image_url: Optional[str] = None
+    description: str | None = Field(None, max_length=500)
+    image_url: str | None = None
     type: RewardType = Field(default=RewardType.ONE_TIME)
     cost: int = Field(..., ge=1, le=100)
-    duration_minutes: Optional[int] = Field(None, ge=1, le=480)
-    stock: Optional[int] = Field(None, ge=0)
+    duration_minutes: int | None = Field(None, ge=1, le=480)
+    stock: int | None = Field(None, ge=0)
     enabled: bool = Field(default=True)
 
     is_active: bool = Field(default=True)
@@ -63,15 +62,15 @@ class RewardCreate(BaseModel):
 class RewardUpdate(BaseModel):
     """Schema for updating a reward."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    description: Optional[str] = Field(None, max_length=500)
-    image_url: Optional[str] = None
-    type: Optional[RewardType] = None
-    cost: Optional[int] = Field(None, ge=1, le=100)
-    duration_minutes: Optional[int] = Field(None, ge=1, le=480)
-    stock: Optional[int] = Field(None, ge=0)
-    enabled: Optional[bool] = None
-    is_active: Optional[bool] = None
+    name: str | None = Field(None, min_length=1, max_length=100)
+    description: str | None = Field(None, max_length=500)
+    image_url: str | None = None
+    type: RewardType | None = None
+    cost: int | None = Field(None, ge=1, le=100)
+    duration_minutes: int | None = Field(None, ge=1, le=480)
+    stock: int | None = Field(None, ge=0)
+    enabled: bool | None = None
+    is_active: bool | None = None
 
 
 class RewardResponse(BaseModel):
@@ -80,13 +79,13 @@ class RewardResponse(BaseModel):
     id: UUID
     family_id: UUID
     name: str
-    description: Optional[str]
-    image_url: Optional[str]
+    description: str | None
+    image_url: str | None
     type: RewardType
     cost: int
-    duration_minutes: Optional[int]
-    stock: Optional[int]
-    available_stock: Optional[int]
+    duration_minutes: int | None
+    stock: int | None
+    available_stock: int | None
     enabled: bool
     created_at: datetime
     updated_at: datetime
@@ -113,9 +112,9 @@ class RedemptionResponse(BaseModel):
     type: RewardType
     status: str
     redeemed_at: datetime
-    timer_session_id: Optional[UUID]
-    completed_at: Optional[datetime]
-    notes: Optional[str]
+    timer_session_id: UUID | None
+    completed_at: datetime | None
+    notes: str | None
     model_config = {"from_attributes": True}
 
 
@@ -140,9 +139,9 @@ class TimerSessionResponse(BaseModel):
     duration_seconds: int
     remaining_seconds: int
     started_at: datetime
-    paused_at: Optional[datetime]
-    resumed_at: Optional[datetime]
-    completed_at: Optional[datetime]
+    paused_at: datetime | None
+    resumed_at: datetime | None
+    completed_at: datetime | None
     status: str
     is_paused: bool
     model_config = {"from_attributes": True}
@@ -153,7 +152,7 @@ class PinnedRewardResponse(BaseModel):
 
     reward_id: UUID
     pinned_at: datetime
-    reward: Optional[RewardResponse]
+    reward: RewardResponse | None
     model_config = {"from_attributes": True}
 
 
@@ -161,7 +160,7 @@ class RedeemRequest(BaseModel):
     """Schema for redeeming a reward (child device)."""
 
     reward_id: UUID
-    notes: Optional[str] = Field(None, max_length=500)
+    notes: str | None = Field(None, max_length=500)
 
 
     model_config = {"from_attributes": True}

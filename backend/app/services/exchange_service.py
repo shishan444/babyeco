@@ -1,6 +1,6 @@
 """Exchange system service for managing rewards, redemptions, and timer sessions."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -20,8 +20,7 @@ from app.models.exchange import (
 from app.services.point_service import PointService
 
 if TYPE_CHECKING:
-    from app.models.child_profile import ChildProfile
-    from app.models.user import User
+    pass
 
 
 class OutOfStockError(Exception):
@@ -226,7 +225,7 @@ class ExchangeService:
             points_spent=reward.cost,
             type=reward.type,
             status=RedemptionStatus.COMPLETED,
-            redeemed_at=datetime.now(timezone.utc),
+            redeemed_at=datetime.now(UTC),
         )
 
         if reward.type == RewardType.TIMER:
@@ -239,7 +238,7 @@ class ExchangeService:
                 reward_id=reward.id,
                 duration_seconds=duration_seconds,
                 remaining_seconds=duration_seconds,
-                started_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
                 status=TimerSessionStatus.RUNNING,
             )
             self.db.add(timer_session)
@@ -303,7 +302,7 @@ class ExchangeService:
                 f"Timer is not running. Current status: {timer.status}"
             )
         timer.status = TimerSessionStatus.PAUSED
-        timer.paused_at = datetime.now(timezone.utc)
+        timer.paused_at = datetime.now(UTC)
         await self.db.flush()
         await self.db.refresh(timer)
         return timer
@@ -316,7 +315,7 @@ class ExchangeService:
                 f"Timer is not paused. Current status: {timer.status}"
             )
         timer.status = TimerSessionStatus.RUNNING
-        timer.resumed_at = datetime.now(timezone.utc)
+        timer.resumed_at = datetime.now(UTC)
         await self.db.flush()
         await self.db.refresh(timer)
         return timer
@@ -332,7 +331,7 @@ class ExchangeService:
                 f"Timer cannot be completed. Current status: {timer.status}"
             )
         timer.status = TimerSessionStatus.COMPLETED
-        timer.completed_at = datetime.now(timezone.utc)
+        timer.completed_at = datetime.now(UTC)
         timer.remaining_seconds = 0
 
         # Update redemption status
@@ -374,7 +373,7 @@ class ExchangeService:
         if existing:
             # Update existing pin
             existing.reward_id = reward_id
-            existing.pinned_at = datetime.now(timezone.utc)
+            existing.pinned_at = datetime.now(UTC)
             await self.db.flush()
             await self.db.refresh(existing)
             return existing
@@ -382,7 +381,7 @@ class ExchangeService:
         pinned = PinnedReward(
             child_id=child_id,
             reward_id=reward_id,
-            pinned_at=datetime.now(timezone.utc),
+            pinned_at=datetime.now(UTC),
         )
         self.db.add(pinned)
         await self.db.flush()

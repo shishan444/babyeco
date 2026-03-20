@@ -1,6 +1,6 @@
 """Entertainment content models for children's reading and tracking."""
 
-from datetime import datetime, date
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4

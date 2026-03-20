@@ -1,6 +1,6 @@
 """Security utilities for password hashing and JWT token handling."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
@@ -30,19 +30,19 @@ def create_access_token(
 ) -> str:
     """Create a JWT access token."""
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     elif token_type == "access":
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = datetime.now(UTC) + timedelta(
             minutes=settings.jwt_access_token_expire_minutes
         )
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_token_expire_days)
+        expire = datetime.now(UTC) + timedelta(days=settings.jwt_refresh_token_expire_days)
 
     to_encode: dict[str, Any] = {
         "sub": subject,
         "type": token_type,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
     }
     if extra_data:
         to_encode.update(extra_data)

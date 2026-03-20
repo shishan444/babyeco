@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
-from app.models.user import User
 from app.models.child_profile import ChildProfile
+from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.services.child_profile_service import ChildProfileService
 

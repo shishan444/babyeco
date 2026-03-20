@@ -2,13 +2,13 @@
 
 from fastapi import APIRouter
 
+from app.api.v1.ai import router as ai_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.children import router as children_router
+from app.api.v1.entertainment import router as entertainment_router
+from app.api.v1.exchange import router as exchange_router
 from app.api.v1.points import router as points_router
 from app.api.v1.tasks import router as tasks_router
-from app.api.v1.exchange import router as exchange_router
-from app.api.v1.entertainment import router as entertainment_router
-from app.api.v1.ai import router as ai_router
 
 router = APIRouter()
 router.include_router(auth_router, prefix="/auth", tags=["Authentication"])

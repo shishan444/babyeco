@@ -1,6 +1,5 @@
 """Exchange system API routes for reward management and redemptions."""
 
-from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -9,6 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import CurrentUser
 from app.core.database import get_db
+from app.models.exchange import (
+    RewardType,
+)
 from app.schemas.exchange import (
     PinnedRewardResponse,
     RedemptionResponse,
@@ -16,7 +18,6 @@ from app.schemas.exchange import (
     RewardListResponse,
     RewardResponse,
     RewardUpdateRequest,
-    RedeemRequest,
     TimerSessionResponse,
 )
 from app.services.child_profile_service import ChildProfileService
@@ -27,15 +28,7 @@ from app.services.exchange_service import (
     InvalidTimerStateError,
     OutOfStockError,
 )
-from app.models.exchange import (
-    Redemption,
-    Reward,
-    RewardType,
-    TimerSession,
-    TimerSessionStatus,
-)
 from app.services.point_service import PointService
-
 
 router = APIRouter()
 
@@ -285,7 +278,7 @@ async def redeem_reward(
 ) -> RedemptionResponse:
     """Redeem a reward for points."""
     # Verify child belongs to current user
-    child = await child_service.get_profile(child_id, current_user.id)
+    await child_service.get_profile(child_id, current_user.id)
     try:
         redemption = await exchange_service.redeem_reward(
             child_id=child_id,
@@ -295,24 +288,24 @@ async def redeem_reward(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
     except InsufficientPointsError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
     except ActiveTimerError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     # Build response
-    timer_session_data = None
     if redemption.timer_session_id:
         timer = await exchange_service.get_timer_session(redemption.timer_session_id)
         if timer:
-            timer_session_data = TimerSessionResponse.model_validate(timer)
+            # Timer session data is available if needed in the future
+            pass
 
     return RedemptionResponse(
         id=redemption.id,
@@ -340,7 +333,7 @@ async def get_redemption_history(
 ) -> list[RedemptionResponse]:
     """Get redemption history for a child."""
     # Verify child belongs to current user
-    child = await child_service.get_profile(child_id, current_user.id)
+    await child_service.get_profile(child_id, current_user.id)
     redemptions, total = await exchange_service.get_redemption_history(
         child_id=child_id,
         page=page,

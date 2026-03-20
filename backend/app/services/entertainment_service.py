@@ -1,12 +1,11 @@
 """Entertainment service for content management and reading progress."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.entertainment import (
     Content,
@@ -20,8 +19,7 @@ from app.models.entertainment import (
 from app.services.point_service import PointService
 
 if TYPE_CHECKING:
-    from app.models.child_profile import ChildProfile
-    from app.models.user import User
+    pass
 
 
 class ContentNotFoundError(Exception):
@@ -209,7 +207,7 @@ class EntertainmentService:
                 progress_seconds=progress_seconds,
                 last_position=last_position,
                 completed=completed,
-                started_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
             )
             self.db.add(progress)
         else:
@@ -218,7 +216,7 @@ class EntertainmentService:
                 progress.last_position = last_position
             if completed:
                 progress.completed = True
-                progress.completed_at = datetime.now(timezone.utc)
+                progress.completed_at = datetime.now(UTC)
 
         await self.db.flush()
         await self.db.refresh(progress)
@@ -242,13 +240,13 @@ class EntertainmentService:
                 content_id=content_id,
                 progress_seconds=content.duration_seconds or 0,
                 completed=True,
-                started_at=datetime.now(timezone.utc),
-                completed_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
+                completed_at=datetime.now(UTC),
             )
             self.db.add(progress)
         else:
             progress.completed = True
-            progress.completed_at = datetime.now(timezone.utc)
+            progress.completed_at = datetime.now(UTC)
 
         # Award points
         total_points = content.points_reward + points_bonus
@@ -307,7 +305,7 @@ class EntertainmentService:
             child_id=child_id,
             content_id=content_id,
             points_spent=content.points_cost,
-            unlocked_at=datetime.now(timezone.utc),
+            unlocked_at=datetime.now(UTC),
         )
         self.db.add(unlock)
         await self.db.flush()

@@ -6,17 +6,14 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from sqlalchemy.dialects.postgresql import JSONB, JSON
 
 from app.core.database import Base
 from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.child_profile import ChildProfile
-
-
     from app.models.content import Content
 
 

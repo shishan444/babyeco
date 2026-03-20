@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import CurrentUser
 from app.core.database import get_db
+from app.models.entertainment import ContentCategory
 from app.schemas.entertainment import (
     CompleteContentRequest,
     ContentCreateRequest,
@@ -23,10 +24,8 @@ from app.schemas.entertainment import (
 from app.services.child_profile_service import ChildProfileService
 from app.services.entertainment_service import (
     ContentAccessError,
-    ContentNotFoundError,
     EntertainmentService,
 )
-from app.models.entertainment import ContentCategory, ContentType
 
 router = APIRouter()
 
@@ -214,7 +213,7 @@ async def unlock_content(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
 
 @router.post("/{content_id}/questions", response_model=QuestionSessionResponse)
@@ -229,7 +228,7 @@ async def start_question_session(
     """Start AI question session for content."""
     # Verify child belongs to current parent
     await child_service.get_profile(child_id, current_user.id)
-    questions = await entertainment_service.generate_questions(content_id, request.child_age)
+    await entertainment_service.generate_questions(content_id, request.child_age)
     # Return mock response for now
     return QuestionSessionResponse(
         id=content_id,
