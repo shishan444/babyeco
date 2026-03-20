@@ -1,6 +1,6 @@
 """Entertainment content models for children's reading and tracking."""
 
-from datetime import datetime, date
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
@@ -57,7 +57,7 @@ class Content(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     family_id: Mapped[UUID] = mapped_column(
-        ForeignKey("families.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -76,7 +76,7 @@ class Content(Base, TimestampMixin):
         nullable=False,
     )
     duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    age_min: Mapped[int | = mapped_column(Integer, nullable=True)
+    age_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
     age_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
     thumbnail_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[ContentStatus] = mapped_column(
@@ -106,11 +106,9 @@ class Content(Base, TimestampMixin):
     )
 
     # Relationships
-    progress: Mapped[list["ContentProgress"]] = relationship(back_populates="content_progress")
-
-    unlocks: Mapped[list["ContentUnlock"]] = relationship(back_populates="content_unlocks")
-
-    questions: Mapped[list["ContentQuestion"]] = relationship(back_populates="content_questions")
+    progress_records: Mapped[list["ContentProgress"]] = relationship(back_populates="content")
+    unlock_records: Mapped[list["ContentUnlock"]] = relationship(back_populates="content")
+    question_records: Mapped[list["ContentQuestion"]] = relationship(back_populates="content")
 
     def __repr__(self) -> str:
         return f"<Content(id={self.id}, title={self.title})>"
@@ -139,11 +137,11 @@ class ContentProgress(Base, TimestampMixin):
     )
     progress_seconds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    points_earned: Mapped[int | = mapped_column(Integer, default=0, nullable=False)
+    points_earned: Mapped[int | None] = mapped_column(Integer, default=0, nullable=False)
     last_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    started_at: Mapped[datetime | = mapped_column(
+    started_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
+        nullable=True,
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_updated_at: Mapped[datetime] = mapped_column(
@@ -152,11 +150,11 @@ class ContentProgress(Base, TimestampMixin):
     )
 
     # Relationships
-    content: Mapped["Content"] = relationship(back_populates="content")
-    child: Mapped["ChildProfile"] = relationship(back_populates="child_profiles")
+    content: Mapped["Content"] = relationship(back_populates="progress_records")
+    child: Mapped["ChildProfile"] = relationship(back_populates="content_progress")
 
     def __repr__(self) -> str:
-        return f"<ContentProgress(id={self.id}, progress={self.progress_seconds}s>"
+        return f"<ContentProgress(id={self.id}, progress={self.progress_seconds}s)>"
 
 
 class ContentUnlock(Base, TimestampMixin):
@@ -188,8 +186,8 @@ class ContentUnlock(Base, TimestampMixin):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    content: Mapped["Content"] = relationship(back_populates="content")
-    child: Mapped["ChildProfile"] = relationship(back_populates="child_profiles")
+    content: Mapped["Content"] = relationship(back_populates="unlock_records")
+    child: Mapped["ChildProfile"] = relationship(back_populates="content_unlocks")
 
     def __repr__(self) -> str:
         return f"<ContentUnlock(id={self.id})>"
@@ -213,7 +211,7 @@ class ContentQuestion(Base, TimestampMixin):
     )
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[str | None] = mapped_column(Text, nullable=True)
-    correct_answer: Mapped[int | None = mapped_column(Integer, nullable=True)
+    correct_answer: Mapped[int | None] = mapped_column(Integer, nullable=True)
     points_bonus: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -222,10 +220,9 @@ class ContentQuestion(Base, TimestampMixin):
     )
 
     # Relationships
-    content: Mapped["Content"] = relationship(back_populates="content")
-    progress_records: Mapped[list["ContentProgress"]] = relationship(back_populates="progress")
+    content: Mapped["Content"] = relationship(back_populates="question_records")
 
     def __repr__(self) -> str:
-        return f"<ContentQuestion(id={self.id}, question={self.question_text[:30[:30_options})>"
+        return f"<ContentQuestion(id={self.id}, question={self.question_text[:30]}...)>"
 
 

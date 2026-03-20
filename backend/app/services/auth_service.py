@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import create_access_token, decode_token, hash_password, verify_password
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -81,8 +82,9 @@ class AuthService:
             )
         return user
 
-    def create_tokens(self, user_id: str) -> dict[str, str]:
+    def create_tokens(self, user_id: str) -> dict[str, str | int]:
         """Create access and refresh tokens for a user."""
+        settings = get_settings()
         access_token = create_access_token(
             subject=user_id,
             token_type="access",
@@ -91,9 +93,12 @@ class AuthService:
             subject=user_id,
             token_type="refresh",
         )
+        # expires_in in seconds (60 minutes * 60 seconds)
+        expires_in = settings.jwt_access_token_expire_minutes * 60
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
+            "expires_in": expires_in,
         }
 
     def verify_refresh_token(self, refresh_token: str) -> str:

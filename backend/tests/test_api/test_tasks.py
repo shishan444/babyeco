@@ -85,7 +85,7 @@ class TestTaskCreation:
 
         response = await client.post("/api/v1/tasks/", json=task_data)
 
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_create_task_invalid_points(

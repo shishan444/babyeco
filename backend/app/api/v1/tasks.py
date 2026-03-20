@@ -1,6 +1,6 @@
 """Task management API routes."""
 
-from datetime import date
+from datetime import UTC, date
 from typing import Annotated
 from uuid import UUID
 
@@ -9,7 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import CurrentUser
 from app.core.database import get_db
-from app.repositories.child_profile_repository import ChildProfileRepository
 from app.schemas.task import (
     TaskApproveRequest,
     TaskCompleteRequest,
@@ -174,7 +173,7 @@ async def complete_task(
 
     This endpoint is used by child devices to submit task completion.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
 
@@ -197,7 +196,7 @@ async def complete_task(
 
     # Update task status
     task.status = TaskStatus.AWAITING_APPROVAL
-    task.completed_at = datetime.now(timezone.utc)
+    task.completed_at = datetime.now(UTC)
 
     if complete_data.image_proof_url:
         task.image_url = complete_data.image_proof_url
@@ -219,7 +218,7 @@ async def approve_task(
 
     Parents review and approve/reject task completions.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
 
@@ -247,7 +246,7 @@ async def approve_task(
     # Update status
     if approve_data.approved:
         task.status = TaskStatus.APPROVED
-        task.approved_at = datetime.now(timezone.utc)
+        task.approved_at = datetime.now(UTC)
 
         # Award points to child
         total_points = task.points + approve_data.bonus_points

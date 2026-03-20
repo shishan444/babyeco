@@ -22,8 +22,6 @@ class ContentType(str, Enum):
 
     FREE = "free"
     PREMIUM = "premium"
-
-
     UNLOCKABLE = "unlockable"
 
 
@@ -52,24 +50,24 @@ class ContentBase(BaseModel):
     points_reward: int = Field(default=10, ge=1, le=100)
     is_premium: bool = Field(default=False)
     author: str | None = None
-
-
     enabled: bool = Field(default=True)
 
 
-class ContentCreateRequest(ContentBase):
+class ContentCreateRequest(BaseModel):
     """Schema for creating content."""
 
     family_id: UUID
-    title: str
-    description: str | None = None
+    title: str = Field(..., min_length=1, max_length=200)
+    description: str | None = Field(None, max_length=500)
     content_url: str | None = None
-    category: ContentCategory
- type: ContentType = duration_seconds: int | None = None
+    category: ContentCategory = Field(default=ContentCategory.STORY)
+    type: ContentType = Field(default=ContentType.FREE)
+    duration_seconds: int | None = None
     age_min: int | None = None
     age_max: int | None = None
     thumbnail_url: str | None = None
-    status: ContentStatus = points_cost: int = Field(default=0, ge=0, le=1000)
+    status: ContentStatus = Field(default=ContentStatus.PUBLISHED)
+    points_cost: int = Field(default=0, ge=0, le=1000)
     points_reward: int = Field(default=10, ge=1, le=100)
     is_premium: bool = Field(default=False)
     author: str | None = None
@@ -82,8 +80,7 @@ class ContentUpdateRequest(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=200)
     description: str | None = Field(None, max_length=500)
     content_url: str | None = None
-    category: ContentCategory | None
- None
+    category: ContentCategory | None = None
     type: ContentType | None = None
     duration_seconds: int | None = None
     age_min: int | None = None
@@ -97,7 +94,7 @@ class ContentUpdateRequest(BaseModel):
     enabled: bool | None = None
 
 
-class ContentResponse(ContentBase):
+class ContentResponse(BaseModel):
     """Schema for content response."""
 
     id: UUID
@@ -165,9 +162,7 @@ class UpdateProgressRequest(BaseModel):
     """Schema for updating progress."""
 
     progress_seconds: int
-    last_position: int | None
-
-
+    last_position: int | None = None
     completed: bool = False
 
 
@@ -175,9 +170,7 @@ class CompleteContentRequest(BaseModel):
     """Schema for marking content complete."""
 
     points_bonus: int = Field(default=0, ge=0, le=50)
-
-
-    answers_correct: int | Field(default=0, ge=0, le=10)
+    answers_correct: int = Field(default=0, ge=0, le=10)
     notes: str | None = None
 
 
@@ -186,7 +179,6 @@ class QuestionSessionRequest(BaseModel):
 
     content_id: UUID
     child_age: int
-    model_config = {"from_attributes": True}
 
 
 class QuestionSessionResponse(BaseModel):

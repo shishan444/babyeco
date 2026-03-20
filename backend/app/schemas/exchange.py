@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RewardType(str, Enum):
@@ -44,14 +44,19 @@ class RewardCreate(BaseModel):
     stock: int | None = Field(None, ge=0)
     enabled: bool = Field(default=True)
 
+    is_active: bool = Field(default=True)
 
-    @validator('type')
-    def validate_reward_type(cls, v: RewardType):
-        if v.type == RewardType.TIMER and v.duration_minutes is None:
-            raise ValueError("duration_minutes required for timer type")
+    @field_validator('type')
+    @classmethod
+    def validate_reward_type(cls, v: RewardType, info) -> RewardType:
+        if v == RewardType.TIMER:
+            if info.data.get('duration_minutes') is None:
+                raise ValueError("duration_minutes required for timer type")
 
-        if v.type == RewardType.QUANTITY and v.stock is None:
-            raise ValueError("stock required for quantity type")
+        if v == RewardType.QUANTITY:
+            if info.data.get('stock') is None:
+                raise ValueError("stock required for quantity type")
+        return v
 
 
 class RewardUpdate(BaseModel):
@@ -93,8 +98,8 @@ class RewardListResponse(BaseModel):
 
     rewards: list[RewardResponse]
     total: int
-    enabled_count: int
-    disabled_count: int
+    enabled_count: int = 0
+    disabled_count: int = 0
 
 
 class RedemptionResponse(BaseModel):
@@ -105,11 +110,11 @@ class RedemptionResponse(BaseModel):
     reward: RewardResponse
     points_spent: int
     type: RewardType
-    status: RedemptionStatus
+    status: str
     redeemed_at: datetime
-
-    timer_session_id: UUID | None = None
-
+    timer_session_id: UUID | None
+    completed_at: datetime | None
+    notes: str | None
     model_config = {"from_attributes": True}
 
 
@@ -137,9 +142,8 @@ class TimerSessionResponse(BaseModel):
     paused_at: datetime | None
     resumed_at: datetime | None
     completed_at: datetime | None
-    status: TimerSessionStatus
+    status: str
     is_paused: bool
-
     model_config = {"from_attributes": True}
 
 
@@ -148,20 +152,28 @@ class PinnedRewardResponse(BaseModel):
 
     reward_id: UUID
     pinned_at: datetime
-
+    reward: RewardResponse | None
     model_config = {"from_attributes": True}
 
 
 class RedeemRequest(BaseModel):
     """Schema for redeeming a reward (child device)."""
+
     reward_id: UUID
-
-
     notes: str | None = Field(None, max_length=500)
+
+
+    model_config = {"from_attributes": True}
 
 
 class PinRewardRequest(BaseModel):
     """Schema for pinning a reward (child devices)."""
+
     reward_id: UUID
 
     model_config = {"from_attributes": True}
+
+
+# Aliases for backward compatibility (defined after all classes)
+RewardCreateRequest = RewardCreate
+RewardUpdateRequest = RewardUpdate

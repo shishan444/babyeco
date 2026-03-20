@@ -1,4 +1,4 @@
-"""Exchange system models for rewards and redemptions, and timer sessions."""
+"""Exchange system models for rewards, redemptions, and timer sessions."""
 
 from datetime import datetime
 from enum import Enum
@@ -52,7 +52,7 @@ class Reward(Base, TimestampMixin):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     family_id: Mapped[UUID] = mapped_column(
-        ForeignKey("families.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -65,9 +65,7 @@ class Reward(Base, TimestampMixin):
         nullable=False,
     )
     cost: Mapped[int] = mapped_column(Integer, nullable=False)
-    # Timer-specific fields
     duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Quantity-specific fields
     stock: Mapped[int | None] = mapped_column(Integer, nullable=True)
     initial_stock: Mapped[int | None] = mapped_column(Integer, nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -88,7 +86,10 @@ class Reward(Base, TimestampMixin):
     )
 
     # Relationships
-    redemptions: Mapped[list["Redemption"]] = relationship(back_populates="redemptions")
+    redemptions: Mapped[list["Redemption"]] = relationship(back_populates="reward")
+    timer_sessions: Mapped[list["TimerSession"]] = relationship(back_populates="reward")
+
+    pinned_rewards: Mapped[list["PinnedReward"]] = relationship(back_populates="reward")
 
     def __repr__(self) -> str:
         return f"<Reward(id={self.id}, name={self.name}, type={self.type})>"
@@ -129,12 +130,17 @@ class Redemption(Base, TimestampMixin):
         nullable=False,
         index=True,
     )
-    # For timer redemptions
-    timer_session_id: Mapped[UUID | None] = mapped_column(String(36), nullable=True)
+    timer_session_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("timer_sessions.id"),
+        nullable=True,
+    )
 
     # Relationships
-    reward: Mapped["Reward"] = relationship(back_populates="rewards")
-    child: Mapped["ChildProfile"] = relationship(back_populates="child_profiles")
+    reward: Mapped["Reward"] = relationship(back_populates="redemptions")
+    child: Mapped["ChildProfile"] = relationship(back_populates="redemptions")
+    timer_session: Mapped["TimerSession | None"] = relationship(
+        back_populates="redemption",
+    )
 
     def __repr__(self) -> str:
         return f"<Redemption(id={self.id}, reward_id={self.reward_id})>"
@@ -155,10 +161,6 @@ class TimerSession(Base, TimestampMixin):
         ForeignKey("child_profiles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
-    )
-    redemption_id: Mapped[UUID] = mapped_column(
-        ForeignKey("redemptions.id", ondelete="CASCADE"),
-        nullable=False,
     )
     reward_id: Mapped[UUID] = mapped_column(
         ForeignKey("rewards.id", ondelete="CASCADE"),
@@ -182,9 +184,11 @@ class TimerSession(Base, TimestampMixin):
     )
 
     # Relationships
-    reward: Mapped["Reward"] = relationship(back_populates="rewards")
-    child: Mapped["ChildProfile"] = relationship(back_populates="child_profiles")
-    redemption: Mapped["Redemption"] = relationship(back_populates="redemptions")
+    reward: Mapped["Reward"] = relationship(back_populates="timer_sessions")
+    child: Mapped["ChildProfile"] = relationship(back_populates="timer_sessions")
+    redemption: Mapped["Redemption | None"] = relationship(
+        back_populates="timer_session",
+    )
 
     def __repr__(self) -> str:
         return f"<TimerSession(id={self.id}, status={self.status})>"
@@ -204,7 +208,9 @@ class PinnedReward(Base, TimestampMixin):
     child_id: Mapped[UUID] = mapped_column(
         ForeignKey("child_profiles.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,  # One per child
+        unique=True,
+        index=True,
+    )
     reward_id: Mapped[UUID] = mapped_column(
         ForeignKey("rewards.id", ondelete="CASCADE"),
         nullable=False,
@@ -216,8 +222,8 @@ class PinnedReward(Base, TimestampMixin):
     )
 
     # Relationships
-    reward: Mapped["Reward"] = relationship(back_populates="rewards")
-    child: Mapped["ChildProfile"] = relationship(back_populates="child_profiles")
+    reward: Mapped["Reward"] = relationship(back_populates="pinned_rewards")
+    child: Mapped["ChildProfile"] = relationship(back_populates="pinned_rewards")
 
     def __repr__(self) -> str:
         return f"<PinnedReward(child_id={self.child_id}, reward_id={self.reward_id})>"

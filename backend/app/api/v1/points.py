@@ -1,16 +1,14 @@
 """Point management API routes."""
 
-from datetime import date, datetime
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import CurrentUser
 from app.core.database import get_db
-from app.repositories.child_profile_repository import ChildProfileRepository
 from app.schemas.point import (
     EarnRequest,
     PointBalanceResponse,
@@ -24,9 +22,6 @@ from app.services.point_service import (
     InsufficientPointsError,
     PointService,
 )
-
- from app.models.point import PointTransaction
-
 
 router = APIRouter()
 

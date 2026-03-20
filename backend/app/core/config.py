@@ -50,6 +50,14 @@ class Settings(BaseSettings):
     invite_code_length: int = 6
     invite_code_expiry_hours: int = 72
 
+    # AI Settings
+    openai_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    ai_model: str = "gpt-4"
+    ai_max_tokens: int = 300
+    ai_temperature: float = 0.7
+    daily_question_limit: int = 50
+
 
 @lru_cache
 def get_settings() -> Settings:
