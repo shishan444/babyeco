@@ -21,11 +21,25 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.middleware.rate_limit import _rate_limiter
 from app.core.database import Base, get_db
 from app.main import create_application
 
 # Test database URL (in-memory SQLite)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset rate limiter state between tests.
+
+    @MX:NOTE
+    This fixture is automatically applied to all tests.
+    It ensures rate limiting state doesn't leak between tests.
+    """
+    _rate_limiter.reset()
+    yield
+    _rate_limiter.reset()
 
 
 @pytest.fixture(scope="session")
@@ -101,12 +115,12 @@ def sync_client(app: FastAPI) -> TestClient:
 
 @pytest.fixture
 def sample_user_data() -> dict:
-    """Sample user registration data."""
+    """Sample user registration data with phone number."""
     return {
-        "email": "parent@example.com",
-        "password": "SecurePassword123!",
+        "phone": "+8613812345678",
+        "password": "TestPass123",
         "name": "Test Parent",
-        "phone": "+1234567890",
+        "email": None,
     }
 
 

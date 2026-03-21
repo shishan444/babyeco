@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.child_profile import ChildProfile
+from app.models.child_profile import ChildProfile, ChildProfileStatus
 
 
 class ChildProfileRepository:
@@ -35,16 +35,41 @@ class ChildProfileRepository:
         return result.scalar_one_or_none()
 
     async def get_by_parent_id(self, parent_id: UUID) -> list[ChildProfile]:
-        """Get all child profiles for a parent."""
+        """Get all active child profiles for a parent.
+
+        @MX:NOTE
+        Only returns profiles with status=ACTIVE.
+        Archived profiles are excluded from listing.
+        """
         result = await self.db.execute(
-            select(ChildProfile).where(ChildProfile.parent_id == parent_id)
+            select(ChildProfile).where(
+                ChildProfile.parent_id == parent_id,
+                ChildProfile.status == ChildProfileStatus.ACTIVE,
+            )
         )
         return list(result.scalars().all())
 
     async def get_by_invite_code(self, invite_code: str) -> ChildProfile | None:
-        """Get child profile by invite code."""
+        """Get child profile by invite code.
+
+        @MX:NOTE
+        Searches across all statuses to allow validation
+        even for archived profiles.
+        """
         result = await self.db.execute(
             select(ChildProfile).where(ChildProfile.invite_code == invite_code)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_by_device_id(self, device_id: str) -> ChildProfile | None:
+        """Get child profile by device ID.
+
+        @MX:NOTE
+        Returns the profile bound to the specific device.
+        Used for child device authentication.
+        """
+        result = await self.db.execute(
+            select(ChildProfile).where(ChildProfile.device_id == device_id)
         )
         return result.scalar_one_or_none()
 

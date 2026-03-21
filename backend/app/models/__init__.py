@@ -8,7 +8,10 @@ from app.models.ai import (
     SafetyFilterResult,
 )
 from app.models.base import TimestampMixin
-from app.models.child_profile import ChildProfile
+from app.models.child_profile import (
+    ChildProfile,
+    ChildProfileStatus,
+)
 from app.models.entertainment import (
     Content,
     ContentCategory,
@@ -34,11 +37,16 @@ from app.models.point import (
     TransactionType,
 )
 from app.models.task import Task, TaskCategory, TaskCompletion, TaskStatus
-from app.models.user import User
+from app.models.token_blacklist import TokenBlacklist
+from app.models.user import User, UserStatus, UserRole
 
 __all__ = [
     "User",
+    "UserStatus",
+    "UserRole",
     "ChildProfile",
+    "ChildProfileStatus",
+    "TokenBlacklist",
     "PointBalance",
     "PointFreeze",
     "PointTransaction",
@@ -68,5 +76,5 @@ __all__ = [
     "TimestampMixin",
 ]
 
-# Re-export User for convenience
+# Re-export for convenience
 User = User  # noqa: PLW0604

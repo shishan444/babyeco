@@ -14,11 +14,11 @@ async def auth_headers(
     # Register user
     await client.post("/api/v1/auth/register", json=sample_user_data)
 
-    # Login and get token
+    # Login and get token using phone number
     login_response = await client.post(
         "/api/v1/auth/login",
         json={
-            "email": sample_user_data["email"],
+            "phone": sample_user_data["phone"],
             "password": sample_user_data["password"],
         },
     )

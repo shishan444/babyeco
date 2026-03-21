@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-parent-primary: 4F46E5;
+    --color-parent-secondary: 7C3AED;
+  }
+
+  body {
+    @apply bg-parent-background text-gray-900;
+  }
+}
