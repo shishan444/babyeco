@@ -10,7 +10,10 @@ from app.api.middleware.rate_limit import check_rate_limit
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.auth import (
+    ForgotPasswordRequest,
+    MessageResponse,
     RefreshTokenRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
@@ -130,3 +133,51 @@ async def logout(
     """
     auth_service = AuthService(db)
     await auth_service.logout(current_user.id, refresh_token)
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _rate_limit: None = Depends(check_rate_limit("forgot_password")),
+) -> MessageResponse:
+    """Request password reset for a phone number.
+
+    Generates a secure reset token that can be used to reset the password.
+    In production, the token would be sent via SMS.
+
+    For testing purposes, the token is returned in a development environment.
+
+    Rate limited: 3 attempts per hour per IP.
+    """
+    from app.services.password_reset_service import PasswordResetService
+
+    reset_service = PasswordResetService(db)
+    token = await reset_service.initiate_reset(request.phone)
+
+    # In production: Send SMS with token
+    # For testing: Return token in response (only in dev!)
+    return MessageResponse(
+        message=f"Password reset token generated (dev mode): {token}"
+    )
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MessageResponse:
+    """Reset password using a valid reset token.
+
+    Validates the reset token and updates the user's password.
+    The token is single-use and expires after 1 hour.
+
+    Returns success message if password was reset successfully.
+    """
+    from app.services.password_reset_service import PasswordResetService
+
+    reset_service = PasswordResetService(db)
+    await reset_service.reset_password(request)
+
+    return MessageResponse(message="Password has been reset successfully")
+

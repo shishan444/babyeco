@@ -118,6 +118,23 @@ async def regenerate_invite_code(
     return ChildProfileResponse.model_validate(profile)
 
 
+@router.get("/{profile_id}/invite-code", response_model=dict[str, str])
+async def get_invite_code(
+    profile_id: UUID,
+    current_user: CurrentUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    """Get the current invite code for a child profile.
+
+    Returns the invite code that can be shared with the child
+    for device binding on their device.
+    """
+    service = ChildProfileService(db)
+    profile = await service.get_profile(profile_id, current_user.id)
+
+    return {"invite_code": profile.invite_code or ""}
+
+
 # Child device endpoints (no parent authentication required)
 @router.post("/child/bind-with-code", response_model=ChildLoginResponse)
 async def bind_device_with_code(

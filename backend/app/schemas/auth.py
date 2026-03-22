@@ -233,6 +233,55 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    """Schema for password reset request."""
+
+    phone: str = Field(
+        ...,
+        description="E.164 format phone number",
+    )
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        """Validate E.164 phone format."""
+        if not PhoneNumberValidation.is_valid_e164(v):
+            raise ValueError(
+                "Invalid phone number format. Use E.164 format (e.g., +8613812345678)"
+            )
+        return v
+
+
+class ResetPasswordRequest(BaseModel):
+    """Schema for password reset with token."""
+
+    token: str = Field(
+        ...,
+        description="Password reset token",
+    )
+    new_password: str = Field(
+        ...,
+        min_length=8,
+        max_length=100,
+        description="New password (min 8 chars, must contain uppercase, lowercase, and digit)",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """Validate password complexity."""
+        is_valid, error_msg = PasswordValidation.is_valid_password(v)
+        if not is_valid:
+            raise ValueError(error_msg or "Password does not meet requirements")
+        return v
+
+
+class MessageResponse(BaseModel):
+    """Schema for simple success message responses."""
+
+    message: str
+
+
 class ChildProfileBase(BaseModel):
     """Base child profile schema."""
 

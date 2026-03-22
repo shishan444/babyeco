@@ -386,3 +386,135 @@ class TestRateLimiting:
                 # 4th attempt should be rate limited
                 if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
                     break
+
+
+class TestPasswordReset:
+    """Tests for password reset functionality."""
+
+    @pytest.mark.asyncio
+    async def test_forgot_password_success(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Test successful password reset request."""
+        # Register user first
+        user_data = {
+            "phone": "+8613812345678",
+            "password": "TestPass123",
+            "name": "Test Parent",
+        }
+        await client.post("/api/v1/auth/register", json=user_data)
+
+        # Request password reset
+        reset_request = {"phone": user_data["phone"]}
+        response = await client.post(
+            "/api/v1/auth/forgot-password",
+            json=reset_request,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "message" in data
+        # In dev mode, token is returned in message
+        assert "Password reset token generated" in data["message"]
+
+    @pytest.mark.asyncio
+    async def test_forgot_password_nonexistent_phone(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Test password reset with nonexistent phone."""
+        # Don't register user
+        reset_request = {"phone": "+8619876543210"}
+        response = await client.post(
+            "/api/v1/auth/forgot-password",
+            json=reset_request,
+        )
+
+        # Should still return 404 for security (don't reveal if exists)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @pytest.mark.asyncio
+    async def test_reset_password_success(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Test successful password reset with valid token."""
+        # Register user first
+        user_data = {
+            "phone": "+8613812345678",
+            "password": "TestPass123",
+            "name": "Test Parent",
+        }
+        await client.post("/api/v1/auth/register", json=user_data)
+
+        # Request password reset
+        reset_request = {"phone": user_data["phone"]}
+        reset_response = await client.post(
+            "/api/v1/auth/forgot-password",
+            json=reset_request,
+        )
+        reset_message = reset_response.json()["message"]
+
+        # Extract token from message (dev mode)
+        # Message format: "Password reset token generated (dev mode): {token}"
+        token = reset_message.split(": ")[1]
+
+        # Reset password
+        reset_data = {
+            "token": token,
+            "new_password": "NewPassword456",
+        }
+        response = await client.post(
+            "/api/v1/auth/reset-password",
+            json=reset_data,
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["message"] == "Password has been reset successfully"
+
+        # Verify new password works
+        login_response = await client.post(
+            "/api/v1/auth/login",
+            json={
+                "phone": user_data["phone"],
+                "password": "NewPassword456",
+            },
+        )
+        assert login_response.status_code == status.HTTP_200_OK
+
+    @pytest.mark.asyncio
+    async def test_reset_password_invalid_token(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Test password reset with invalid token."""
+        reset_data = {
+            "token": "invalid_token",
+            "new_password": "NewPassword456",
+        }
+        response = await client.post(
+            "/api/v1/auth/reset-password",
+            json=reset_data,
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_reset_password_weak_password(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        """Test password reset with weak password fails."""
+        reset_data = {
+            "token": "sometoken",
+            "new_password": "weak",
+        }
+        response = await client.post(
+            "/api/v1/auth/reset-password",
+            json=reset_data,
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
