@@ -12,6 +12,7 @@ from app.models.child_profile import (
     ChildProfile,
     ChildProfileStatus,
 )
+from app.models.family import Family
 from app.models.entertainment import (
     Content,
     ContentCategory,
@@ -44,6 +45,7 @@ __all__ = [
     "User",
     "UserStatus",
     "UserRole",
+    "Family",
     "ChildProfile",
     "ChildProfileStatus",
     "TokenBlacklist",

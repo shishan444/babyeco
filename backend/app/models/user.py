@@ -5,7 +5,7 @@ from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -13,6 +13,7 @@ from app.models.base import TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.child_profile import ChildProfile
+    from app.models.family import Family
 
 
 class UserStatus(str, PyEnum):
@@ -72,7 +73,20 @@ class User(Base, TimestampMixin):
     # Legacy fields (optional, for future email support)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Family relationship
+    family_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("families.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Optional family ID for household grouping",
+    )
+
     # Relationships
+    family: Mapped["Family"] = relationship(
+        "Family",
+        back_populates="users",
+        lazy="selectin",
+    )
     children: Mapped[list["ChildProfile"]] = relationship(
         "ChildProfile",
         back_populates="parent",
