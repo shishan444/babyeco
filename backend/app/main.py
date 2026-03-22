@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1 import router as api_v1_router
 from app.core.config import settings
 from app.core.database import close_db, init_db
+from app.middleware.performance import PerformanceMiddleware
 
 
 @asynccontextmanager
@@ -40,6 +41,12 @@ def create_application() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+    )
+
+    # Add performance monitoring middleware
+    app.add_middleware(
+        PerformanceMiddleware,
+        slow_request_threshold=getattr(settings, "slow_request_threshold", 1.0),
     )
 
     # Include API routes
