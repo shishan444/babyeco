@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     ai_temperature: float = 0.7
     daily_question_limit: int = 50
 
+    # Cache Settings
+    cache_enabled: bool = True
+    cache_ttl: int = 300  # 5 minutes default TTL
+    cache_max_size: int = 1000  # Max items in in-memory cache
+
+    # Performance Settings
+    slow_request_threshold: float = 1.0  # Log requests slower than 1 second
+
 
 @lru_cache
 def get_settings() -> Settings:
