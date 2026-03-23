@@ -40,6 +40,15 @@ from app.models.point import (
 from app.models.task import Task, TaskCategory, TaskCompletion, TaskStatus
 from app.models.token_blacklist import TokenBlacklist
 from app.models.user import User, UserStatus, UserRole
+from app.models.report import (
+    Achievement,
+    AchievementCategory,
+    CachedAggregate,
+    ExportStatus,
+    Milestone,
+    MilestoneType,
+    ReportExport,
+)
 
 __all__ = [
     "User",
@@ -76,6 +85,13 @@ __all__ = [
     "QuestionSet",
     "SafetyFilterResult",
     "TimestampMixin",
+    "Achievement",
+    "AchievementCategory",
+    "CachedAggregate",
+    "ExportStatus",
+    "Milestone",
+    "MilestoneType",
+    "ReportExport",
 ]
 
 # Re-export for convenience

@@ -131,3 +131,25 @@ def sample_child_data() -> dict:
         "name": "Test Child",
         "birth_date": "2016-01-15",
     }
+
+
+@pytest.fixture
+async def sample_child(db_session: AsyncSession, test_user):
+    """Create sample child profile for testing."""
+    from app.models.child_profile import ChildProfile
+    from uuid import uuid4
+
+    child = ChildProfile(
+        id=uuid4(),
+        parent_id=test_user.id,
+        name="Test Child",
+        points_balance=0,
+        total_points_earned=0,
+        current_streak=0,
+        longest_streak=0,
+    )
+    db_session.add(child)
+    await db_session.commit()
+    await db_session.refresh(child)
+
+    return child

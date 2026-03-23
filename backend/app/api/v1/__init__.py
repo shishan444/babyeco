@@ -9,6 +9,7 @@ from app.api.v1.entertainment import router as entertainment_router
 from app.api.v1.exchange import router as exchange_router
 from app.api.v1.points import router as points_router
 from app.api.v1.tasks import router as tasks_router
+from app.api.v1 import reports as reports_router
 
 router = APIRouter()
 router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
@@ -18,5 +19,6 @@ router.include_router(tasks_router, prefix="/tasks", tags=["Tasks"])
 router.include_router(exchange_router, prefix="/exchange", tags=["Exchange"])
 router.include_router(entertainment_router, prefix="/entertainment", tags=["Entertainment"])
 router.include_router(ai_router, prefix="/ai", tags=["AI"])
+router.include_router(reports_router.router, prefix="/reports", tags=["Reports"])
 
 __all__ = ["router"]

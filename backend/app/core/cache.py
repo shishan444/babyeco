@@ -241,5 +241,18 @@ def cache_invalidate(*patterns: str) -> Callable[[Callable[P, R]], Callable[P, R
     return decorator
 
 
+async def get_cache() -> InMemoryCache:
+    """Get cache instance.
+
+    @MX:ANCHOR
+    Cache dependency injection for services.
+    Returns global in-memory cache instance.
+
+    Returns:
+        Cache instance
+    """
+    return _cache
+
+
 # Import time at module level
 import time
