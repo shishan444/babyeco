@@ -51,9 +51,29 @@ class PointService:
         )
         return result.scalar_one_or_none()
 
-    async def _get_or_create_balance(self, child_id: UUID) -> PointBalance:
-        """Get existing balance or create new one."""
-        balance = await self.get_balance(child_id)
+    async def _get_or_create_balance(
+        self, child_id: UUID, *, lock: bool = False
+    ) -> PointBalance:
+        """Get existing balance or create new one.
+
+        Args:
+            child_id: The child's UUID
+            lock: If True, lock the row for update (prevents race conditions)
+
+        @MX:NOTE
+        Row locking prevents concurrent modification conflicts per UBR-002.
+        Use lock=True for all balance-modifying operations.
+        """
+        if lock:
+            # Lock the row for update to prevent race conditions
+            result = await self.db.execute(
+                select(PointBalance)
+                .where(PointBalance.child_id == child_id)
+                .with_for_update()
+            )
+            balance = result.scalar_one_or_none()
+        else:
+            balance = await self.get_balance(child_id)
 
         if not balance:
             balance = PointBalance(
@@ -76,9 +96,14 @@ class PointService:
         source_id: UUID | None = None,
         description: str | None = None,
     ) -> PointTransaction:
-        """Add points to child's balance."""
-        # Use existing transaction context from FastAPI
-        balance = await self._get_or_create_balance(child_id)
+        """Add points to child's balance.
+
+        @MX:ANCHOR
+        Earning points increases balance and total_earned.
+        Creates transaction record with full audit trail per UR-002.
+        """
+        # Lock balance row to prevent race conditions (UBR-002)
+        balance = await self._get_or_create_balance(child_id, lock=True)
 
         # Update balance
         balance.balance += amount
@@ -109,9 +134,14 @@ class PointService:
         source_id: UUID | None = None,
         description: str | None = None,
     ) -> PointTransaction:
-        """Spend points from child's balance."""
-        # Use existing transaction context from FastAPI
-        balance = await self._get_or_create_balance(child_id)
+        """Spend points from child's balance.
+
+        @MX:ANCHOR
+        Spending checks available balance (excluding frozen) per UR-003.
+        Prevents negative balances from normal spend operations.
+        """
+        # Lock balance row to prevent race conditions (UBR-002)
+        balance = await self._get_or_create_balance(child_id, lock=True)
 
         # Check available balance
         available = balance.balance - balance.frozen
@@ -146,9 +176,14 @@ class PointService:
         source_type: str,
         source_id: UUID | None = None,
     ) -> PointFreeze:
-        """Freeze points for a pending reward."""
-        # Use existing transaction context from FastAPI
-        balance = await self._get_or_create_balance(child_id)
+        """Freeze points for a pending reward.
+
+        @MX:NOTE
+        Freezing reserves points without deducting from balance.
+        Available balance = balance - frozen per SDR-001.
+        """
+        # Lock balance row to prevent race conditions (UBR-002)
+        balance = await self._get_or_create_balance(child_id, lock=True)
 
         # Check available balance
         available = balance.balance - balance.frozen
@@ -189,8 +224,12 @@ class PointService:
         child_id: UUID,
         freeze_id: UUID,
     ) -> PointTransaction:
-        """Unfreeze previously frozen points."""
-        # Use existing transaction context from FastAPI
+        """Unfreeze previously frozen points.
+
+        @MX:NOTE
+        Unfreezing releases points back to available balance.
+        Idempotent - can only unfreeze active freeze records.
+        """
         # Get freeze record
         result = await self.db.execute(
             select(PointFreeze).where(
@@ -204,8 +243,8 @@ class PointService:
         if not freeze:
             raise ValueError("Freeze record not found or not active")
 
-        # Get balance
-        balance = await self._get_or_create_balance(child_id)
+        # Lock balance row to prevent race conditions (UBR-002)
+        balance = await self._get_or_create_balance(child_id, lock=True)
 
         # Update frozen amount
         balance.frozen -= freeze.amount
@@ -236,9 +275,14 @@ class PointService:
         amount: int,
         reason: str,
     ) -> PointTransaction:
-        """Manually adjust child's balance (parent action)."""
-        # Use existing transaction - no nested begin needed
-        balance = await self._get_or_create_balance(child_id)
+        """Manually adjust child's balance (parent action).
+
+        @MX:NOTE
+        Manual adjustments can create negative balances (parent override).
+        Adjustments create audit trail per EDR-004.
+        """
+        # Lock balance row to prevent race conditions (UBR-002)
+        balance = await self._get_or_create_balance(child_id, lock=True)
 
         # Update balance
         balance.balance += amount
