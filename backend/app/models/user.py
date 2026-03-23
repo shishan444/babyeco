@@ -99,5 +99,15 @@ class User(Base, TimestampMixin):
         """Check if user account is active."""
         return self.status == UserStatus.ACTIVE
 
+    @property
+    def family_name(self) -> str | None:
+        """Get family name if user belongs to a family.
+
+        @MX:NOTE
+        Returns None if user is not linked to a family.
+        Accesses the family relationship to get the name.
+        """
+        return self.family.name if self.family else None
+
     def __repr__(self) -> str:
         return f"<User(id={self.id}, phone={self.phone}, name={self.name}, status={self.status.value})>"

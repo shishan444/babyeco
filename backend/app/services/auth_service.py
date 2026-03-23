@@ -1,7 +1,7 @@
 """Authentication service for user management."""
 
 from datetime import datetime, timezone, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_access_token, decode_token, hash_password, verify_password
+from app.models.family import Family
 from app.models.token_blacklist import TokenBlacklist
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
@@ -28,10 +29,11 @@ class AuthService:
         self.db = db
         self.user_repo = UserRepository(db)
 
-    async def register(self, user_data: UserCreate) -> User:
+    async def register(self, user_data: UserCreate, family_name: str | None = None) -> User:
         """Register a new user account.
 
         @MX:WARN
+        Creates a family automatically on registration (SPEC-BE-AUTH-001 EDR-001).
         Validates phone uniqueness before creating account.
         Passwords are hashed using bcrypt with configurable rounds.
         Phone number must be in E.164 format.
@@ -43,12 +45,22 @@ class AuthService:
                 detail="Phone number already registered",
             )
 
+        # Create family first (SPEC-BE-AUTH-001 EDR-001)
+        family = Family(
+            name=family_name or "My Family",
+            settings={},
+        )
+        self.db.add(family)
+        await self.db.flush()
+        await self.db.refresh(family)
+
         # Create new user with hashed password
         user = User(
             phone=user_data.phone,
             hashed_password=hash_password(user_data.password),
             name=user_data.name,
             email=user_data.email,  # Optional email
+            family_id=family.id,  # Link to family
         )
         return await self.user_repo.create(user)
 

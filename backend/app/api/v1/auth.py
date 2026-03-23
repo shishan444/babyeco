@@ -3,11 +3,13 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps.auth import CurrentUser, get_current_user
 from app.api.middleware.rate_limit import check_rate_limit
 from app.core.database import get_db
+from app.models.family import Family
 from app.models.user import User
 from app.schemas.auth import (
     ForgotPasswordRequest,
@@ -38,6 +40,7 @@ async def register(
     """Register a new parent account.
 
     Creates a new user account with phone number and password.
+    Automatically creates a family for the user (SPEC-BE-AUTH-001).
     Phone must be in E.164 format (e.g., +8613812345678).
     Password must meet complexity requirements:
     - Minimum 8 characters
@@ -48,7 +51,15 @@ async def register(
     Rate limited: 3 attempts per hour per IP.
     """
     auth_service = AuthService(db)
-    user = await auth_service.register(user_data)
+    user = await auth_service.register(user_data, family_name=user_data.family_name)
+
+    # Load family relationship for response
+    if user.family_id:
+        family_result = await db.execute(
+            select(Family).where(Family.id == user.family_id)
+        )
+        user.family = family_result.scalar_one_or_none()
+
     return UserResponse.model_validate(user)
 
 

@@ -75,6 +75,11 @@ class ChildProfile(Base, TimestampMixin):
         index=True,
         comment="6-character invite code for device binding",
     )
+    invite_code_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Invite code expiration timestamp (72 hours from generation)",
+    )
 
     # Status tracking
     status: Mapped[ChildProfileStatus] = mapped_column(

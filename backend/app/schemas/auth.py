@@ -163,6 +163,12 @@ class UserCreate(UserBase):
         None,
         description="Optional email address for future use",
     )
+    family_name: str | None = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        description="Optional family name (defaults to 'My Family')",
+    )
 
     @field_validator("phone")
     @classmethod
@@ -204,6 +210,8 @@ class UserResponse(BaseModel):
     status: UserStatus
     role: UserRole
     last_login_at: datetime | None
+    family_id: UUID | None
+    family_name: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -315,6 +323,7 @@ class ChildProfileResponse(ChildProfileBase):
     current_streak: int
     longest_streak: int
     invite_code: str | None
+    invite_code_expires_at: datetime | None
     device_id: str | None
     device_bound: bool
     device_bound_at: datetime | None

@@ -1,12 +1,13 @@
 """Child profile service for managing child accounts."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.security import generate_invite_code
 from app.models.child_profile import ChildProfile, ChildProfileStatus
 from app.repositories.child_profile_repository import ChildProfileRepository
@@ -33,6 +34,7 @@ class ChildProfileService:
 
         @MX:WARN
         Generates unique 6-character invite code for device binding.
+        Invite code expires in 72 hours (SPEC-BE-AUTH-001).
         Maximum 5 child profiles per parent account.
         Excludes confusing characters (0/O/I/L) from invite codes.
         """
@@ -49,12 +51,18 @@ class ChildProfileService:
         while await self.profile_repo.get_by_invite_code(invite_code):
             invite_code = generate_invite_code()
 
+        # Calculate invite code expiration (72 hours from now)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=settings.invite_code_expiry_hours
+        )
+
         # Create profile
         profile = ChildProfile(
             parent_id=parent_id,
             name=profile_data.name,
             birth_date=profile_data.birth_date,
             invite_code=invite_code,
+            invite_code_expires_at=expires_at,
             avatar_url=profile_data.avatar_url,
             status=ChildProfileStatus.ACTIVE,
         )
@@ -127,7 +135,7 @@ class ChildProfileService:
         """Generate a new invite code for a child profile.
 
         @MX:WARN
-        Invalidates the old invite code.
+        Invalidates the old invite code and resets expiration to 72 hours.
         Useful if the code was compromised or shared accidentally.
         Device binding is not affected.
         """
@@ -138,7 +146,13 @@ class ChildProfileService:
         while await self.profile_repo.get_by_invite_code(new_code):
             new_code = generate_invite_code()
 
+        # Reset expiration to 72 hours from now
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=settings.invite_code_expiry_hours
+        )
+
         profile.invite_code = new_code
+        profile.invite_code_expires_at = expires_at
         return await self.profile_repo.update(profile)
 
     async def bind_device_by_invite_code(
@@ -148,7 +162,7 @@ class ChildProfileService:
 
         @MX:WARN
         Returns child profile with authentication tokens.
-        Raises exception if code is invalid, already used, or device already bound.
+        Raises exception if code is invalid, expired, already used, or device already bound.
 
         Returns:
             Tuple of (ChildProfile, token_response)
@@ -165,6 +179,15 @@ class ChildProfileService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Child profile is not active",
             )
+
+        # Check invite code expiration (SPEC-BE-AUTH-001)
+        if profile.invite_code_expires_at:
+            now = datetime.now(timezone.utc)
+            if profile.invite_code_expires_at < now:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invite code has expired",
+                )
 
         if profile.device_id:
             raise HTTPException(

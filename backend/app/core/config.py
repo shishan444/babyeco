@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     # JWT Authentication
     jwt_secret_key: str = Field(default="change-me-in-production-use-secure-random-key")
     jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 60 * 24  # 24 hours
-    jwt_refresh_token_expire_days: int = 30
+    jwt_access_token_expire_minutes: int = 60  # 1 hour (SPEC-BE-AUTH-001)
+    jwt_refresh_token_expire_days: int = 7  # 7 days (SPEC-BE-AUTH-001)
 
     # Password Hashing
     bcrypt_rounds: int = 12
