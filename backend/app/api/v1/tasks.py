@@ -2,6 +2,7 @@
 
 from datetime import UTC, date
 from typing import Annotated
+
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -19,6 +20,7 @@ from app.schemas.task import (
     TaskUpdate,
 )
 from app.services.child_profile_service import ChildProfileService
+from app.services.task_service import TaskService, InvalidTaskStatusError
 
 router = APIRouter()
 
@@ -37,23 +39,9 @@ async def create_task(
     child_service = ChildProfileService(db)
     child = await child_service.get_profile(task_data.child_id, current_user.id)
 
-    # Create task (simplified - in real implementation would have TaskService)
-    from app.models.task import Task
-
-    task = Task(
-        child_id=task_data.child_id,
-        title=task_data.title,
-        description=task_data.description,
-        category=task_data.category,
-        points=task_data.points,
-        due_date=task_data.due_date,
-        due_time=task_data.due_time,
-        is_recurring=task_data.is_recurring,
-        recurrence_pattern=task_data.recurrence_pattern,
-    )
-    db.add(task)
-    await db.flush()
-    await db.refresh(task)
+    # Use TaskService to create task
+    task_service = TaskService(db)
+    task = await task_service.create_task(task_data)
 
     return TaskResponse.model_validate(task)
 
@@ -74,23 +62,13 @@ async def list_child_tasks(
     child_service = ChildProfileService(db)
     await child_service.get_profile(child_id, current_user.id)
 
-    # Query tasks
-    from sqlalchemy import select
-
-    from app.models.task import Task
-
-    query = select(Task).where(Task.child_id == child_id, Task.is_active == True)
-
-    if status_filter:
-        query = query.where(Task.status == status_filter)
-
-    if date_filter:
-        query = query.where(Task.due_date == date_filter)
-
-    query = query.order_by(Task.due_date.asc(), Task.created_at.desc())
-
-    result = await db.execute(query)
-    tasks = list(result.scalars().all())
+    # Use TaskService to list tasks
+    task_service = TaskService(db)
+    tasks = await task_service.list_tasks_by_child(
+        child_id,
+        status_filter=status_filter,
+        date_filter=date_filter,
+    )
 
     return TaskListResponse(
         tasks=[TaskResponse.model_validate(t) for t in tasks],
@@ -107,12 +85,8 @@ async def get_task(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TaskResponse:
     """Get a specific task by ID."""
-    from sqlalchemy import select
-
-    from app.models.task import Task
-
-    result = await db.execute(select(Task).where(Task.id == task_id))
-    task = result.scalar_one_or_none()
+    task_service = TaskService(db)
+    task = await task_service.get_task_by_id(task_id)
 
     if not task:
         raise HTTPException(
@@ -135,13 +109,10 @@ async def update_task(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> TaskResponse:
     """Update a task's details."""
-    from sqlalchemy import select
+    task_service = TaskService(db)
 
-    from app.models.task import Task
-
-    result = await db.execute(select(Task).where(Task.id == task_id))
-    task = result.scalar_one_or_none()
-
+    # First get task to verify ownership
+    task = await task_service.get_task_by_id(task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -152,15 +123,10 @@ async def update_task(
     child_service = ChildProfileService(db)
     await child_service.get_profile(task.child_id, current_user.id)
 
-    # Update fields
-    update_data = task_data.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(task, field, value)
+    # Update task
+    updated = await task_service.update_task(task_id, task_data)
 
-    await db.flush()
-    await db.refresh(task)
-
-    return TaskResponse.model_validate(task)
+    return TaskResponse.model_validate(updated)
 
 
 @router.post("/{task_id}/complete", response_model=TaskResponse)
@@ -173,38 +139,25 @@ async def complete_task(
 
     This endpoint is used by child devices to submit task completion.
     """
-    from datetime import datetime
+    task_service = TaskService(db)
 
-    from sqlalchemy import select
-
-    from app.models.task import Task, TaskStatus
-
-    result = await db.execute(select(Task).where(Task.id == task_id))
-    task = result.scalar_one_or_none()
-
-    if not task:
+    try:
+        completed = await task_service.complete_task(
+            task_id=task_id,
+            child_id=UUID("00000000-0000-0000-0000-000000000000"),  # TODO: Get from child token
+            image_proof_url=complete_data.image_proof_url,
+        )
+        return TaskResponse.model_validate(completed)
+    except InvalidTaskStatusError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
         )
-
-    if task.status != TaskStatus.PENDING:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Task already {task.status.value}",
-        )
-
-    # Update task status
-    task.status = TaskStatus.AWAITING_APPROVAL
-    task.completed_at = datetime.now(UTC)
-
-    if complete_data.image_proof_url:
-        task.image_url = complete_data.image_proof_url
-
-    await db.flush()
-    await db.refresh(task)
-
-    return TaskResponse.model_validate(task)
 
 
 @router.post("/{task_id}/approve", response_model=TaskResponse)
@@ -218,15 +171,10 @@ async def approve_task(
 
     Parents review and approve/reject task completions.
     """
-    from datetime import datetime
+    task_service = TaskService(db)
 
-    from sqlalchemy import select
-
-    from app.models.task import Task, TaskStatus
-
-    result = await db.execute(select(Task).where(Task.id == task_id))
-    task = result.scalar_one_or_none()
-
+    # First get task to verify ownership
+    task = await task_service.get_task_by_id(task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -237,27 +185,18 @@ async def approve_task(
     child_service = ChildProfileService(db)
     await child_service.get_profile(task.child_id, current_user.id)
 
-    if task.status != TaskStatus.AWAITING_APPROVAL:
+    try:
+        approved = await task_service.approve_task(
+            task_id=task_id,
+            approved=approve_data.approved,
+            bonus_points=approve_data.bonus_points,
+        )
+        return TaskResponse.model_validate(approved)
+    except InvalidTaskStatusError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Task is not awaiting approval",
+            detail=str(e),
         )
-
-    # Update status
-    if approve_data.approved:
-        task.status = TaskStatus.APPROVED
-        task.approved_at = datetime.now(UTC)
-
-        # Award points to child
-        total_points = task.points + approve_data.bonus_points
-        await child_service.add_points(task.child_id, total_points)
-    else:
-        task.status = TaskStatus.REJECTED
-
-    await db.flush()
-    await db.refresh(task)
-
-    return TaskResponse.model_validate(task)
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -267,13 +206,10 @@ async def delete_task(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """Delete a task (soft delete by setting is_active=False)."""
-    from sqlalchemy import select
+    task_service = TaskService(db)
 
-    from app.models.task import Task
-
-    result = await db.execute(select(Task).where(Task.id == task_id))
-    task = result.scalar_one_or_none()
-
+    # First get task to verify ownership
+    task = await task_service.get_task_by_id(task_id)
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -284,5 +220,4 @@ async def delete_task(
     child_service = ChildProfileService(db)
     await child_service.get_profile(task.child_id, current_user.id)
 
-    task.is_active = False
-    await db.flush()
+    await task_service.delete_task(task_id)
